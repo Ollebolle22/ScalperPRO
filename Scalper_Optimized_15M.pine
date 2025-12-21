@@ -1,0 +1,802 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Optimized Momentum Scalper - 15M Timeframe Specialist
+
+//@version=6
+strategy("⚡ Momentum Scalper PRO v8.0 [15M Optimized]",
+     overlay=true,
+     initial_capital=10000,
+     default_qty_type=strategy.percent_of_equity,
+     default_qty_value=100,
+     commission_type=strategy.commission.percent,
+     commission_value=0.06,
+     slippage=2,
+     pyramiding=3,
+     calc_on_every_tick=false,
+     process_orders_on_close=true,
+     max_bars_back=500)
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 💰 KAPITAL & LEVERAGE
+// ══════════════════════════════════════════════════════════════════════════════
+
+grpCapital = "💰 Kapital & Leverage"
+leverage = input.float(5.0, "📊 Leverage", minval=1.0, maxval=50.0, step=0.5, group=grpCapital, tooltip="Hävstång på börsen")
+liq_buffer_pct = input.float(30.0, "🛡️ Likvidations-buffer %", minval=15.0, maxval=60.0, step=5.0, group=grpCapital, tooltip="Säkerhetsmarginal till likvidationspris - ÖKA för säkerhet")
+position_pct = input.float(95.0, "📍 Position Size %", minval=10.0, maxval=100.0, step=5.0, group=grpCapital, tooltip="Andel av equity per trade")
+min_liq_distance = input.float(8.0, "🚨 Min avstånd till liq %", minval=5.0, maxval=20.0, step=1.0, group=grpCapital, tooltip="Minsta tillåtna avstånd till likvidation")
+use_dynamic_sizing = input.bool(true, "✓ Dynamic Position Sizing", group=grpCapital, tooltip="Justera position size baserat på ATR/volatilitet")
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 🔄 DCA SETTINGS (FÖRBÄTTRAD)
+// ══════════════════════════════════════════════════════════════════════════════
+
+grpDCA = "🔄 DCA (Dollar Cost Average)"
+use_dca = input.bool(true, "✓ Aktivera DCA", group=grpDCA, tooltip="Lägg till position vid drawdown - NU MED BÄTTRE KONTROLL")
+dca_max_entries = input.int(2, "Max DCA entries", minval=1, maxval=3, group=grpDCA, tooltip="Reducerat från 5 till 2 för bättre risk management")
+dca_mode = input.string("ATR Smart", "DCA Trigger-läge", options=["ATR Smart", "Fixed %"], group=grpDCA, tooltip="ATR Smart rekommenderas för 15min")
+dca_atr_mult = input.float(2.5, "ATR Multiplikator", minval=1.0, maxval=5.0, step=0.25, group=grpDCA, tooltip="Ökat från 2.0 till 2.5 för 15min")
+dca_fixed_pct = input.float(4.0, "Fixed % avstånd", minval=1.0, maxval=10.0, step=0.5, group=grpDCA, tooltip="Ökat från 3% till 4% för 15min volatilitet")
+dca_size_mult = input.float(1.3, "Storlek multiplikator", minval=1.0, maxval=2.0, step=0.1, group=grpDCA, tooltip="Reducerat från 1.5 för säkrare DCA")
+require_trend_for_dca = input.bool(true, "✓ Kräv fortsatt trend för DCA", group=grpDCA, tooltip="NYT: Tillåt bara DCA om trenden håller i sig")
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 📈 TREND SETTINGS (OPTIMERADE FÖR 15MIN)
+// ══════════════════════════════════════════════════════════════════════════════
+
+grpTrend = "📈 Trend Settings [15M Optimized]"
+emaFastLen = input.int(21, "Fast EMA Length", minval=8, maxval=50, group=grpTrend, tooltip="Ökat från 12 till 21 för 15min - minskar whipsaws")
+emaSlowLen = input.int(50, "Slow EMA Length", minval=20, maxval=100, group=grpTrend, tooltip="Ökat från 26 till 50 för tydligare crossovers")
+emaTrendLen = input.int(100, "Trend EMA Length", minval=50, maxval=200, group=grpTrend, tooltip="Ökat från 50 till 100 för stark trend filter")
+emaSource = input.source(close, "EMA Source", group=grpTrend)
+requireTrendAlignment = input.bool(true, "✓ Kräv trend-alignment", group=grpTrend, tooltip="STARKT REKOMMENDERAT - filtrera mot trenden")
+emaSpacing = input.float(0.3, "Min EMA-spacing %", minval=0.1, maxval=2.0, step=0.1, group=grpTrend, tooltip="NYT: Kräv att EMAs är separerade - undviker ranging")
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 💪 ADX TREND STRENGTH (NYTT!)
+// ══════════════════════════════════════════════════════════════════════════════
+
+grpADX = "💪 ADX Trend Strength [NYT!]"
+useADX = input.bool(true, "✓ Använd ADX Filter", group=grpADX, tooltip="KRITISKT för 15min - filtrera svaga trender")
+adxLen = input.int(14, "ADX Length", minval=7, maxval=30, group=grpADX)
+adxThreshold = input.int(25, "ADX Minimum", minval=15, maxval=40, group=grpADX, tooltip="25+ = stark trend, <20 = ranging market")
+adxStrong = input.int(35, "ADX Stark Trend", minval=25, maxval=50, group=grpADX, tooltip="35+ = mycket stark trend - bättre R:R")
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 📉 RSI SETTINGS (STRIKTARE)
+// ══════════════════════════════════════════════════════════════════════════════
+
+grpRSI = "📉 RSI Settings [Tightened]"
+useRSI = input.bool(true, "✓ Använd RSI Filter", group=grpRSI, tooltip="HÅLL PÅ - viktigt filter")
+rsiLen = input.int(14, "RSI Length", minval=7, maxval=21, group=grpRSI)
+rsiSource = input.source(close, "RSI Source", group=grpRSI)
+rsiLongMin = input.int(45, "RSI Long Min", minval=30, maxval=55, group=grpRSI, tooltip="Ökat från 40 - kräv starkare momentum")
+rsiLongMax = input.int(65, "RSI Long Max", minval=55, maxval=80, group=grpRSI, tooltip="Minskat från 70 - undvik overbought")
+rsiShortMin = input.int(35, "RSI Short Min", minval=20, maxval=45, group=grpRSI, tooltip="Ökat från 30")
+rsiShortMax = input.int(55, "RSI Short Max", minval=45, maxval=70, group=grpRSI, tooltip="Minskat från 60 - undvik oversold")
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 📊 MACD SETTINGS (JUSTERAD)
+// ══════════════════════════════════════════════════════════════════════════════
+
+grpMACD = "📊 MACD Settings"
+useMACD = input.bool(true, "✓ Använd MACD Filter", group=grpMACD)
+macdFast = input.int(12, "MACD Fast", minval=8, maxval=20, group=grpMACD)
+macdSlow = input.int(26, "MACD Slow", minval=20, maxval=50, group=grpMACD)
+macdSignal = input.int(9, "MACD Signal", minval=5, maxval=15, group=grpMACD)
+macdSource = input.source(close, "MACD Source", group=grpMACD)
+requireMACDCross = input.bool(true, "✓ Kräv MACD-korsning", group=grpMACD, tooltip="ÄNDRAT till true - kräv faktisk cross för entry")
+macdHistIncreasing = input.bool(true, "✓ Kräv ökande histogram", group=grpMACD, tooltip="NYT: Histogram måste öka = starkare momentum")
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 🎯 RISK MANAGEMENT (FÖRBÄTTRAD)
+// ══════════════════════════════════════════════════════════════════════════════
+
+grpRisk = "🎯 Risk Management [Enhanced]"
+atrLen = input.int(20, "ATR Length", minval=10, maxval=30, group=grpRisk, tooltip="Ökat från 14 till 20 för 15min smoothing")
+atrMultSL = input.float(2.5, "ATR Multiplier Stop Loss", minval=1.5, maxval=5.0, step=0.1, group=grpRisk, tooltip="Ökat från 2.0 till 2.5 - bredare SL för 15min")
+atrMultTP = input.float(5.0, "ATR Multiplier Take Profit", minval=3.0, maxval=10.0, step=0.5, group=grpRisk, tooltip="Ökat från 3.0 till 5.0 - bättre R:R (2:1)")
+
+// Partial Profit System (NYTT!)
+usePartialTP = input.bool(true, "✓ Partial Take Profit", group=grpRisk, tooltip="NYT: Ta 50% vinst vid 1.5R, låt resten köra")
+partialTPPercent = input.float(50.0, "Partial TP %", minval=25.0, maxval=75.0, step=5.0, group=grpRisk, tooltip="Procent av position att stänga")
+partialTPTrigger = input.float(1.5, "Partial TP vid R-multipel", minval=1.0, maxval=3.0, step=0.25, group=grpRisk, tooltip="Ta partial profit vid 1.5R")
+
+// Trailing Stop (FIXAD!)
+useTrailingStop = input.bool(true, "✓ Use Trailing Stop", group=grpRisk, tooltip="FIXAD implementation")
+trailActivation = input.float(2.0, "Trail Activation (R)", minval=1.0, maxval=5.0, step=0.25, group=grpRisk, tooltip="NYT: Aktivera trailing vid 2R vinst")
+trailOffset = input.float(1.2, "Trailing Stop ATR Mult", minval=0.5, maxval=3.0, step=0.1, group=grpRisk, tooltip="Minskat från 1.5 - tightare trailing")
+
+// Breakeven
+useBreakeven = input.bool(true, "✓ Flytta SL till breakeven", group=grpRisk, tooltip="Rekommenderat för 15min")
+breakevenTrigger = input.float(1.2, "Breakeven vid R-multipel", minval=0.8, maxval=2.0, step=0.1, group=grpRisk, tooltip="Ökat från 1.0 till 1.2")
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 📦 VOLUME FILTER (STRIKTARE)
+// ══════════════════════════════════════════════════════════════════════════════
+
+grpVol = "📦 Volume Filter [Tightened]"
+useVolFilter = input.bool(true, "✓ Use Volume Filter", group=grpVol, tooltip="KRITISKT - filtrera låg volym")
+volMultiplier = input.float(1.5, "Volume Multiplier", minval=1.0, maxval=3.0, step=0.1, group=grpVol, tooltip="Ökat från 1.2 till 1.5 för 15min")
+volLen = input.int(24, "Volume MA Length", minval=10, maxval=50, group=grpVol, tooltip="Ökat från 20 till 24 (6 timmar på 15min)")
+volIncreasing = input.bool(true, "✓ Kräv ökande volym", group=grpVol, tooltip="NYT: Volym måste öka senaste 2 bars")
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ⏰ SESSION FILTER (FÖRBÄTTRAD)
+// ══════════════════════════════════════════════════════════════════════════════
+
+grpSession = "⏰ Session Filter"
+useSessionFilter = input.bool(true, "✓ Use Session Filter", group=grpSession, tooltip="REKOMMENDERAT för 15min - handla rätt timmar")
+sessionStart = input.session("0800-2200", "Trading Session", group=grpSession, tooltip="08-22 CET rekommenderas (undvik natt)")
+avoidFirstBar = input.bool(true, "✓ Undvik första bar i session", group=grpSession, tooltip="NYT: Undvik entry första 15min")
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 🤖 BOT CONFIG
+// ══════════════════════════════════════════════════════════════════════════════
+
+grpBot = "🤖 Bot Config"
+bot_id = input.string("b5b6069f87e87df334c11c36", "🤖 Bot ID", group=grpBot)
+exchange_name = input.string("HyperLiquid", "Exchange", options=["HyperLiquid", "Binance", "Bybit", "OKX"], group=grpBot)
+pair_name = input.string("SOL-USDC", "Trading Pair", group=grpBot)
+strategy_name_bot = input.string("SOL_15M", "Strategy Name", group=grpBot)
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 🖥️ DISPLAY SETTINGS
+// ══════════════════════════════════════════════════════════════════════════════
+
+grpDisplay = "🖥️ Display Settings"
+showInfoPanel = input.bool(true, "📋 Show Info Panel", group=grpDisplay)
+showTradeLabels = input.bool(true, "🏷️ Show Trade Labels", group=grpDisplay)
+showEMAs = input.bool(true, "📈 Show EMAs", group=grpDisplay)
+showSLTP = input.bool(true, "🎯 Show SL/TP Lines", group=grpDisplay)
+showLiqLine = input.bool(true, "⚠️ Show Liquidation Line", group=grpDisplay)
+showDCALevels = input.bool(true, "🔄 Show DCA Levels", group=grpDisplay)
+showPartialTP = input.bool(true, "📊 Show Partial TP Line", group=grpDisplay)
+showBreakeven = input.bool(true, "🎯 Show Breakeven Line", group=grpDisplay)
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 🎨 COLORS
+// ══════════════════════════════════════════════════════════════════════════════
+
+grpColors = "🎨 Colors"
+colFastEMA = input.color(#2962FF, "Fast EMA", group=grpColors)
+colSlowEMA = input.color(#FF6D00, "Slow EMA", group=grpColors)
+colTrendEMA = input.color(#9C27B0, "Trend EMA", group=grpColors)
+colBull = input.color(#26A69A, "Bullish", group=grpColors)
+colBear = input.color(#EF5350, "Bearish", group=grpColors)
+colSL = input.color(#F23645, "Stop Loss", group=grpColors)
+colTP = input.color(#089981, "Take Profit", group=grpColors)
+colPartial = input.color(#FFA726, "Partial TP", group=grpColors)
+colLiq = input.color(#E040FB, "Liquidation", group=grpColors)
+colDCA = input.color(#FF9800, "DCA Levels", group=grpColors)
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 📐 INDICATORS
+// ══════════════════════════════════════════════════════════════════════════════
+
+// EMAs
+emaFast = ta.ema(emaSource, emaFastLen)
+emaSlow = ta.ema(emaSource, emaSlowLen)
+emaTrend = ta.ema(emaSource, emaTrendLen)
+
+// RSI
+rsiValue = ta.rsi(rsiSource, rsiLen)
+
+// MACD
+[macdLine, signalLine, histLine] = ta.macd(macdSource, macdFast, macdSlow, macdSignal)
+
+// ATR
+atrValue = ta.atr(atrLen)
+
+// Volume
+volMA = ta.sma(volume, volLen)
+
+// ADX (NYT!)
+[diPlus, diMinus, adxValue] = ta.dmi(adxLen, adxLen)
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 🛡️ FILTERS
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Volume Filter (FÖRBÄTTRAD)
+volCondition = not useVolFilter or (volume > volMA * volMultiplier and (not volIncreasing or volume > volume[1]))
+
+// Session Filter (FÖRBÄTTRAD)
+inSession = not useSessionFilter or not na(time(timeframe.period, sessionStart))
+var int barsInSession = 0
+if inSession and not inSession[1]
+    barsInSession := 0
+if inSession
+    barsInSession += 1
+notFirstBar = not avoidFirstBar or barsInSession > 1
+
+// ADX Filter (NYT!)
+adxCondition = not useADX or adxValue >= adxThreshold
+strongTrend = adxValue >= adxStrong
+
+// EMA Spacing (NYT!)
+emaSpacingLong = math.abs(emaFast - emaSlow) / close * 100 >= emaSpacing
+emaSpacingShort = math.abs(emaFast - emaSlow) / close * 100 >= emaSpacing
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 🛡️ LIKVIDATIONSSKYDD
+// ══════════════════════════════════════════════════════════════════════════════
+
+calc_liq_price(entry, is_long) =>
+    liq_pct = (1.0 / leverage) - 0.005
+    is_long ? entry * (1 - liq_pct) : entry * (1 + liq_pct)
+
+calc_safe_sl(entry, raw_sl, is_long) =>
+    liq = calc_liq_price(entry, is_long)
+    if is_long
+        dist_to_liq = entry - liq
+        max_sl_dist = dist_to_liq * (100 - liq_buffer_pct) / 100
+        min_sl = entry - max_sl_dist
+        math.max(raw_sl, min_sl)
+    else
+        dist_to_liq = liq - entry
+        max_sl_dist = dist_to_liq * (100 - liq_buffer_pct) / 100
+        max_sl = entry + max_sl_dist
+        math.min(raw_sl, max_sl)
+
+is_near_liquidation(entry, current, is_long) =>
+    liq = calc_liq_price(entry, is_long)
+    dist = is_long ? (current - liq) / current * 100 : (liq - current) / current * 100
+    dist < min_liq_distance
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 🎯 ENTRY SIGNALS (STRIKTARE!)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Trend Conditions
+bullTrend = emaFast > emaSlow and (not requireTrendAlignment or close > emaTrend)
+bearTrend = emaFast < emaSlow and (not requireTrendAlignment or close < emaTrend)
+
+// EMA Crosses
+emaBullCross = ta.crossover(emaFast, emaSlow)
+emaBearCross = ta.crossunder(emaFast, emaSlow)
+
+// MACD Conditions (FÖRBÄTTRADE)
+macdCrossUp = ta.crossover(macdLine, signalLine)
+macdCrossDown = ta.crossunder(macdLine, signalLine)
+macdHistGrowing = histLine > histLine[1]
+macdHistFalling = histLine < histLine[1]
+
+macdLongOK = not useMACD or (macdCrossUp and (not macdHistIncreasing or macdHistGrowing))
+macdShortOK = not useMACD or (macdCrossDown and (not macdHistIncreasing or macdHistFalling))
+
+// RSI Conditions
+rsiLongOK = not useRSI or (rsiValue >= rsiLongMin and rsiValue <= rsiLongMax)
+rsiShortOK = not useRSI or (rsiValue >= rsiShortMin and rsiValue <= rsiShortMax)
+
+// Trend Alignment
+trendAlignLong = not requireTrendAlignment or close > emaTrend
+trendAlignShort = not requireTrendAlignment or close < emaTrend
+
+// MAIN ENTRY CONDITIONS (STRIKTARE - BORTTAGET "OR")
+// NU KRÄVER VI: EMA Cross OCH MACD Cross OCH alla filter
+longCond = emaBullCross and macdLongOK and rsiLongOK and trendAlignLong and volCondition and inSession and notFirstBar and adxCondition and emaSpacingLong
+shortCond = emaBearCross and macdShortOK and rsiShortOK and trendAlignShort and volCondition and inSession and notFirstBar and adxCondition and emaSpacingShort
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 💾 STATE VARIABLES
+// ══════════════════════════════════════════════════════════════════════════════
+
+var float entry_price = na
+var float avg_entry = na
+var float stop_loss = na
+var float take_profit = na
+var float partial_tp_price = na
+var float liq_price = na
+var float initial_sl_dist = na
+var int dca_count = 0
+var float base_qty = 0.0
+var float total_qty = 0.0
+var bool is_long = false
+var bool is_short = false
+var bool partial_taken = false
+var bool breakeven_moved = false
+var bool trail_activated = false
+var float trail_high = na
+var float trail_low = na
+
+in_position = strategy.position_size != 0
+
+// Reset på flat
+if not in_position and (is_long[1] or is_short[1])
+    entry_price := na
+    avg_entry := na
+    stop_loss := na
+    take_profit := na
+    partial_tp_price := na
+    liq_price := na
+    initial_sl_dist := na
+    dca_count := 0
+    base_qty := 0.0
+    total_qty := 0.0
+    is_long := false
+    is_short := false
+    partial_taken := false
+    breakeven_moved := false
+    trail_activated := false
+    trail_high := na
+    trail_low := na
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 🔄 DCA HELPERS
+// ══════════════════════════════════════════════════════════════════════════════
+
+calc_dca_trigger(entry, is_long_pos, dca_num) =>
+    dist = dca_mode == "ATR Smart" ? atrValue * dca_atr_mult * dca_num : entry * (dca_fixed_pct / 100) * dca_num
+    is_long_pos ? entry - dist : entry + dist
+
+calc_dca_qty(base, dca_num) =>
+    base * math.pow(dca_size_mult, dca_num - 1)
+
+get_bot_code(action) =>
+    action + "_" + exchange_name + "_" + pair_name + "_" + strategy_name_bot + "_15M_" + bot_id
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 🚀 ENTRIES
+// ══════════════════════════════════════════════════════════════════════════════
+
+// LONG ENTRY
+if longCond and not in_position
+    raw_sl = close - (atrValue * atrMultSL)
+    safe_sl = calc_safe_sl(close, raw_sl, true)
+    sl_dist = close - safe_sl
+    tp = close + (atrValue * atrMultTP)
+    partial_tp = close + (sl_dist * partialTPTrigger)
+    liq = calc_liq_price(close, true)
+    sl_to_liq_pct = (safe_sl - liq) / close * 100
+
+    if sl_to_liq_pct >= min_liq_distance
+        entry_price := close
+        avg_entry := close
+        stop_loss := safe_sl
+        take_profit := tp
+        partial_tp_price := partial_tp
+        liq_price := liq
+        initial_sl_dist := sl_dist
+        dca_count := 1
+        is_long := true
+        is_short := false
+        partial_taken := false
+        breakeven_moved := false
+        trail_activated := false
+        trail_high := high
+        trail_low := low
+
+        // Dynamic position sizing
+        qty_pct = use_dynamic_sizing ? math.min(position_pct, 100 / (sl_dist / close * 100)) : position_pct
+
+        strategy.entry("Long", strategy.long, qty=strategy.equity * qty_pct / 100 / close, comment="L")
+
+        code = get_bot_code("ENTER-LONG")
+        alert('{"code":"' + code + '","price":"' + str.tostring(close, "#.##") + '","sl":"' + str.tostring(safe_sl, "#.##") + '","tp":"' + str.tostring(tp, "#.##") + '","type":"ENTRY"}', alert.freq_once_per_bar)
+
+        if showTradeLabels
+            rr = (tp - close) / sl_dist
+            label.new(bar_index, low, "🟢 LONG\n💰 " + str.tostring(close, format.mintick) + "\n🛑 SL: " + str.tostring(safe_sl, format.mintick) + "\n🎯 TP: " + str.tostring(tp, format.mintick) + "\n📊 R:R " + str.tostring(rr, "#.#") + "\n💪 ADX: " + str.tostring(adxValue, "#"),
+                 style=label.style_label_up, color=color.new(colBull, 10), textcolor=color.white, size=size.small)
+
+// SHORT ENTRY
+if shortCond and not in_position
+    raw_sl = close + (atrValue * atrMultSL)
+    safe_sl = calc_safe_sl(close, raw_sl, false)
+    sl_dist = safe_sl - close
+    tp = close - (atrValue * atrMultTP)
+    partial_tp = close - (sl_dist * partialTPTrigger)
+    liq = calc_liq_price(close, false)
+    sl_to_liq_pct = (liq - safe_sl) / close * 100
+
+    if sl_to_liq_pct >= min_liq_distance
+        entry_price := close
+        avg_entry := close
+        stop_loss := safe_sl
+        take_profit := tp
+        partial_tp_price := partial_tp
+        liq_price := liq
+        initial_sl_dist := sl_dist
+        dca_count := 1
+        is_long := false
+        is_short := true
+        partial_taken := false
+        breakeven_moved := false
+        trail_activated := false
+        trail_high := high
+        trail_low := low
+
+        qty_pct = use_dynamic_sizing ? math.min(position_pct, 100 / (sl_dist / close * 100)) : position_pct
+
+        strategy.entry("Short", strategy.short, qty=strategy.equity * qty_pct / 100 / close, comment="S")
+
+        code = get_bot_code("ENTER-SHORT")
+        alert('{"code":"' + code + '","price":"' + str.tostring(close, "#.##") + '","sl":"' + str.tostring(safe_sl, "#.##") + '","tp":"' + str.tostring(tp, "#.##") + '","type":"ENTRY"}', alert.freq_once_per_bar)
+
+        if showTradeLabels
+            rr = (close - tp) / sl_dist
+            label.new(bar_index, high, "🔴 SHORT\n💰 " + str.tostring(close, format.mintick) + "\n🛑 SL: " + str.tostring(safe_sl, format.mintick) + "\n🎯 TP: " + str.tostring(tp, format.mintick) + "\n📊 R:R " + str.tostring(rr, "#.#") + "\n💪 ADX: " + str.tostring(adxValue, "#"),
+                 style=label.style_label_down, color=color.new(colBear, 10), textcolor=color.white, size=size.small)
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 🔄 DCA (FÖRBÄTTRAD)
+// ══════════════════════════════════════════════════════════════════════════════
+
+if use_dca and in_position and dca_count < dca_max_entries
+    dca_trigger = calc_dca_trigger(avg_entry, is_long, dca_count)
+    dca_hit = (is_long and low <= dca_trigger) or (is_short and high >= dca_trigger)
+
+    // NYTT: Kontrollera att trenden håller i sig
+    trend_ok = not require_trend_for_dca or (is_long and bullTrend) or (is_short and bearTrend)
+
+    if dca_hit and trend_ok
+        dca_qty = calc_dca_qty(base_qty, dca_count + 1)
+        current_value = avg_entry * total_qty
+        new_value = close * dca_qty
+        new_total = total_qty + dca_qty
+        new_avg = (current_value + new_value) / new_total
+
+        if is_long
+            raw_sl = new_avg - (atrValue * atrMultSL)
+            new_sl = calc_safe_sl(new_avg, raw_sl, true)
+            new_liq = calc_liq_price(new_avg, true)
+
+            if (new_sl - new_liq) / new_avg * 100 >= min_liq_distance
+                avg_entry := new_avg
+                stop_loss := new_sl
+                liq_price := new_liq
+                take_profit := new_avg + (atrValue * atrMultTP)
+                partial_tp_price := new_avg + ((new_avg - new_sl) * partialTPTrigger)
+                dca_count += 1
+
+                strategy.entry("Long", strategy.long, qty=dca_qty, comment="DCA" + str.tostring(dca_count))
+
+                code = get_bot_code("ENTER-LONG")
+                alert('{"code":"' + code + '","price":"' + str.tostring(close, "#.##") + '","type":"DCA","num":"' + str.tostring(dca_count) + '"}', alert.freq_once_per_bar)
+
+                if showTradeLabels
+                    label.new(bar_index, low, "🔄 DCA#" + str.tostring(dca_count) + "\n📊 Avg: " + str.tostring(new_avg, format.mintick),
+                         style=label.style_label_up, color=color.new(colDCA, 10), textcolor=color.white, size=size.tiny)
+
+        else if is_short
+            raw_sl = new_avg + (atrValue * atrMultSL)
+            new_sl = calc_safe_sl(new_avg, raw_sl, false)
+            new_liq = calc_liq_price(new_avg, false)
+
+            if (new_liq - new_sl) / new_avg * 100 >= min_liq_distance
+                avg_entry := new_avg
+                stop_loss := new_sl
+                liq_price := new_liq
+                take_profit := new_avg - (atrValue * atrMultTP)
+                partial_tp_price := new_avg - ((new_sl - new_avg) * partialTPTrigger)
+                dca_count += 1
+
+                strategy.entry("Short", strategy.short, qty=dca_qty, comment="DCA" + str.tostring(dca_count))
+
+                code = get_bot_code("ENTER-SHORT")
+                alert('{"code":"' + code + '","price":"' + str.tostring(close, "#.##") + '","type":"DCA","num":"' + str.tostring(dca_count) + '"}', alert.freq_once_per_bar)
+
+                if showTradeLabels
+                    label.new(bar_index, high, "🔄 DCA#" + str.tostring(dca_count) + "\n📊 Avg: " + str.tostring(new_avg, format.mintick),
+                         style=label.style_label_down, color=color.new(colDCA, 10), textcolor=color.white, size=size.tiny)
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 🚨 NÖDBROMS
+// ══════════════════════════════════════════════════════════════════════════════
+
+if in_position and not na(avg_entry)
+    if is_near_liquidation(avg_entry, close, is_long)
+        strategy.close_all(comment="⚠️NÖDSTOPP")
+
+        code = get_bot_code(is_long ? "EXIT-LONG" : "EXIT-SHORT")
+        alert('{"code":"' + code + '","type":"EMERGENCY"}', alert.freq_once_per_bar)
+
+        if showTradeLabels
+            label.new(bar_index, is_long ? low : high, "⚠️ NÖDSTOPP!\n🚨 För nära likvidation",
+                 style=is_long ? label.style_label_up : label.style_label_down, color=colLiq, textcolor=color.white, size=size.normal)
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 💰 PARTIAL TAKE PROFIT (NYTT!)
+// ══════════════════════════════════════════════════════════════════════════════
+
+if usePartialTP and in_position and not partial_taken and not na(partial_tp_price)
+    partial_hit = (is_long and high >= partial_tp_price) or (is_short and low <= partial_tp_price)
+
+    if partial_hit
+        partial_qty = strategy.position_size * (partialTPPercent / 100)
+
+        if is_long
+            strategy.close("Long", qty=math.abs(partial_qty), comment="Partial TP")
+        else
+            strategy.close("Short", qty=math.abs(partial_qty), comment="Partial TP")
+
+        partial_taken := true
+
+        if showTradeLabels
+            profit_pct = is_long ? (partial_tp_price - avg_entry) / avg_entry * 100 : (avg_entry - partial_tp_price) / avg_entry * 100
+            label.new(bar_index, is_long ? high : low, "💰 Partial TP\n✅ " + str.tostring(partialTPPercent, "#") + "% @ +" + str.tostring(profit_pct, "#.#") + "%",
+                 style=is_long ? label.style_label_down : label.style_label_up, color=color.new(colPartial, 10), textcolor=color.white, size=size.small)
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 🎯 RISK MANAGEMENT (BREAKEVEN & TRAILING)
+// ══════════════════════════════════════════════════════════════════════════════
+
+if in_position and not na(avg_entry) and not na(initial_sl_dist)
+
+    // Track high/low
+    if is_long
+        trail_high := na(trail_high) ? high : math.max(trail_high, high)
+    else
+        trail_low := na(trail_low) ? low : math.min(trail_low, low)
+
+    // Current profit in R
+    current_r = is_long ? (high - avg_entry) / initial_sl_dist : (avg_entry - low) / initial_sl_dist
+
+    // Breakeven move
+    if useBreakeven and not breakeven_moved and current_r >= breakevenTrigger
+        if is_long and stop_loss < avg_entry
+            stop_loss := avg_entry + (atrValue * 0.1)  // Lite över breakeven
+            breakeven_moved := true
+            if showTradeLabels
+                label.new(bar_index, low, "⚖️ Breakeven\n🔒 SL flyttad", style=label.style_label_up, color=color.new(color.blue, 20), textcolor=color.white, size=size.tiny)
+
+        else if is_short and stop_loss > avg_entry
+            stop_loss := avg_entry - (atrValue * 0.1)
+            breakeven_moved := true
+            if showTradeLabels
+                label.new(bar_index, high, "⚖️ Breakeven\n🔒 SL flyttad", style=label.style_label_down, color=color.new(color.blue, 20), textcolor=color.white, size=size.tiny)
+
+    // Trailing Stop Activation
+    if useTrailingStop and current_r >= trailActivation
+        if not trail_activated
+            trail_activated := true
+            if showTradeLabels
+                label.new(bar_index, is_long ? low : high, "🔥 Trailing Aktiverad",
+                     style=is_long ? label.style_label_up : label.style_label_down,
+                     color=color.new(color.orange, 20), textcolor=color.white, size=size.tiny)
+
+        // Update trailing stop
+        if is_long
+            new_trail_sl = trail_high - (atrValue * trailOffset)
+            if new_trail_sl > stop_loss
+                stop_loss := new_trail_sl
+        else
+            new_trail_sl = trail_low + (atrValue * trailOffset)
+            if new_trail_sl < stop_loss
+                stop_loss := new_trail_sl
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 🎯 EXITS
+// ══════════════════════════════════════════════════════════════════════════════
+
+if in_position and not na(stop_loss) and not na(take_profit)
+    if is_long
+        strategy.exit("Exit Long", "Long", stop=stop_loss, limit=take_profit, comment_profit="TP✓", comment_loss="SL✗")
+
+    if is_short
+        strategy.exit("Exit Short", "Short", stop=stop_loss, limit=take_profit, comment_profit="TP✓", comment_loss="SL✗")
+
+// Exit alerts
+if strategy.position_size == 0 and strategy.position_size[1] > 0
+    code = get_bot_code("EXIT-LONG")
+    alert('{"code":"' + code + '","price":"' + str.tostring(close, "#.##") + '","type":"EXIT"}', alert.freq_once_per_bar)
+
+if strategy.position_size == 0 and strategy.position_size[1] < 0
+    code = get_bot_code("EXIT-SHORT")
+    alert('{"code":"' + code + '","price":"' + str.tostring(close, "#.##") + '","type":"EXIT"}', alert.freq_once_per_bar)
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 🎨 VISUALS
+// ══════════════════════════════════════════════════════════════════════════════
+
+// EMAs
+pFast = plot(showEMAs ? emaFast : na, "Fast EMA", colFastEMA, 2)
+pSlow = plot(showEMAs ? emaSlow : na, "Slow EMA", colSlowEMA, 2)
+pTrend = plot(showEMAs ? emaTrend : na, "Trend EMA", colTrendEMA, 3)
+
+// EMA Fill
+fill(pFast, pSlow, emaFast > emaSlow ? color.new(colBull, 90) : color.new(colBear, 90))
+
+// SL/TP Lines
+plot(showSLTP and in_position ? stop_loss : na, "SL", colSL, 2, plot.style_linebr)
+plot(showSLTP and in_position ? take_profit : na, "TP", colTP, 2, plot.style_linebr)
+plot(showPartialTP and in_position and not partial_taken ? partial_tp_price : na, "Partial TP", colPartial, 2, plot.style_linebr, style=plot.style_circles)
+plot(showLiqLine and in_position ? liq_price : na, "Liq", colLiq, 2, plot.style_linebr)
+
+// Breakeven Line
+plot(showBreakeven and in_position and breakeven_moved ? avg_entry : na, "Breakeven", color.new(color.blue, 30), 1, plot.style_circles)
+
+// DCA levels
+dca1 = showDCALevels and use_dca and in_position and dca_count < dca_max_entries ? calc_dca_trigger(avg_entry, is_long, dca_count) : na
+plot(dca1, "Next DCA", color.new(colDCA, 40), 2, plot.style_linebr, style=plot.style_cross)
+
+// Background för ADX
+bgcolor(useADX and adxValue < 20 ? color.new(color.red, 95) : na, title="Weak Trend Warning")
+bgcolor(strongTrend ? color.new(color.green, 97) : na, title="Strong Trend")
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 📊 STATS
+// ══════════════════════════════════════════════════════════════════════════════
+
+totalTrades = strategy.closedtrades
+winRate = totalTrades > 0 ? strategy.wintrades / totalTrades * 100 : 0.0
+profitFactor = strategy.grossloss != 0 ? math.abs(strategy.grossprofit / strategy.grossloss) : 0.0
+avgWin = strategy.wintrades > 0 ? strategy.grossprofit / strategy.wintrades : 0.0
+avgLoss = strategy.losstrades > 0 ? math.abs(strategy.grossloss / strategy.losstrades) : 0.0
+avgRR = avgLoss > 0 ? avgWin / avgLoss : 0.0
+
+currentPnL = in_position and not na(avg_entry) ? (is_long ? (close - avg_entry) / avg_entry * 100 * leverage : (avg_entry - close) / avg_entry * 100 * leverage) : 0.0
+distToLiq = in_position and not na(liq_price) ? (is_long ? (close - liq_price) / close * 100 : (liq_price - close) / close * 100) : 0.0
+currentR = in_position and not na(avg_entry) and not na(initial_sl_dist) ? (is_long ? (close - avg_entry) / initial_sl_dist : (avg_entry - close) / initial_sl_dist) : 0.0
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 📋 INFO PANEL (FÖRBÄTTRAD)
+// ══════════════════════════════════════════════════════════════════════════════
+
+if showInfoPanel
+    var table panel = table.new(position.top_right, 2, 25, bgcolor=color.new(#000000, 80), border_width=2, border_color=color.gray)
+
+    // Header
+    table.cell(panel, 0, 0, "⚡ SCALPER v8.0 [15M]", text_color=color.white, text_size=size.normal, bgcolor=color.new(#2962FF, 50))
+    table.merge_cells(panel, 0, 0, 1, 0)
+
+    row = 1
+
+    // Market Conditions
+    table.cell(panel, 0, row, "🌊 MARKET", text_color=color.white, text_size=size.small, bgcolor=color.new(#9C27B0, 60))
+    table.merge_cells(panel, 0, row, 1, row)
+    row += 1
+
+    // Trend
+    trendTxt = bullTrend ? "🟢 BULL" : bearTrend ? "🔴 BEAR" : "🟡 NEUTRAL"
+    trendCol = bullTrend ? colBull : bearTrend ? colBear : color.yellow
+    table.cell(panel, 0, row, "Trend", text_color=color.white, text_size=size.tiny)
+    table.cell(panel, 1, row, trendTxt, text_color=trendCol, text_size=size.tiny)
+    row += 1
+
+    // ADX
+    adxTxt = adxValue >= adxStrong ? "💪 STARK" : adxValue >= adxThreshold ? "✓ OK" : "⚠️ SVAG"
+    adxCol = adxValue >= adxStrong ? colBull : adxValue >= adxThreshold ? color.yellow : colBear
+    table.cell(panel, 0, row, "ADX", text_color=color.white, text_size=size.tiny)
+    table.cell(panel, 1, row, str.tostring(adxValue, "#.#") + " " + adxTxt, text_color=adxCol, text_size=size.tiny)
+    row += 1
+
+    // RSI
+    rsiCol = rsiValue > 65 ? colBear : rsiValue < 35 ? colBull : color.white
+    table.cell(panel, 0, row, "RSI", text_color=color.white, text_size=size.tiny)
+    table.cell(panel, 1, row, str.tostring(rsiValue, "#.#"), text_color=rsiCol, text_size=size.tiny)
+    row += 1
+
+    // MACD
+    macdTxt = macdLine > signalLine ? "🟢" : "🔴"
+    table.cell(panel, 0, row, "MACD", text_color=color.white, text_size=size.tiny)
+    table.cell(panel, 1, row, macdTxt + (macdHistGrowing ? " ⬆" : " ⬇"), text_color=macdLine > signalLine ? colBull : colBear, text_size=size.tiny)
+    row += 1
+
+    // Volume
+    volTxt = volume > volMA * volMultiplier ? "🟢 HIGH" : "🟡 LOW"
+    table.cell(panel, 0, row, "Volume", text_color=color.white, text_size=size.tiny)
+    table.cell(panel, 1, row, volTxt, text_color=volume > volMA * volMultiplier ? colBull : color.yellow, text_size=size.tiny)
+    row += 1
+
+    // Separator
+    table.cell(panel, 0, row, "═══════════", text_color=color.gray, text_size=size.tiny, bgcolor=color.new(color.gray, 85))
+    table.merge_cells(panel, 0, row, 1, row)
+    row += 1
+
+    // Position Header
+    table.cell(panel, 0, row, "📊 POSITION", text_color=color.white, text_size=size.small, bgcolor=color.new(#FF6D00, 60))
+    table.merge_cells(panel, 0, row, 1, row)
+    row += 1
+
+    // Status
+    posTxt = is_long ? "🟢 LONG" : is_short ? "🔴 SHORT" : "⚪ FLAT"
+    posCol = is_long ? colBull : is_short ? colBear : color.gray
+    table.cell(panel, 0, row, "Status", text_color=color.white, text_size=size.tiny)
+    table.cell(panel, 1, row, posTxt, text_color=posCol, text_size=size.tiny)
+    row += 1
+
+    // Entry
+    table.cell(panel, 0, row, "Entry", text_color=color.white, text_size=size.tiny)
+    table.cell(panel, 1, row, in_position ? str.tostring(avg_entry, format.mintick) : "—", text_color=color.white, text_size=size.tiny)
+    row += 1
+
+    // Current R
+    table.cell(panel, 0, row, "Current R", text_color=color.white, text_size=size.tiny)
+    rTxt = in_position ? (currentR >= 0 ? "+" : "") + str.tostring(currentR, "#.##") + "R" : "—"
+    rCol = currentR >= 0 ? colBull : colBear
+    table.cell(panel, 1, row, rTxt, text_color=in_position ? rCol : color.gray, text_size=size.tiny)
+    row += 1
+
+    // P&L %
+    table.cell(panel, 0, row, "P&L", text_color=color.white, text_size=size.tiny)
+    pnlTxt = in_position ? (currentPnL >= 0 ? "+" : "") + str.tostring(currentPnL, "#.##") + "%" : "—"
+    pnlCol = currentPnL >= 0 ? colBull : colBear
+    table.cell(panel, 1, row, pnlTxt, text_color=in_position ? pnlCol : color.gray, text_size=size.tiny)
+    row += 1
+
+    // SL
+    table.cell(panel, 0, row, "Stop Loss", text_color=color.white, text_size=size.tiny)
+    slTxt = in_position ? str.tostring(stop_loss, format.mintick) : "—"
+    if breakeven_moved
+        slTxt += " 🔒"
+    table.cell(panel, 1, row, slTxt, text_color=colSL, text_size=size.tiny)
+    row += 1
+
+    // TP
+    table.cell(panel, 0, row, "Take Profit", text_color=color.white, text_size=size.tiny)
+    table.cell(panel, 1, row, in_position ? str.tostring(take_profit, format.mintick) : "—", text_color=colTP, text_size=size.tiny)
+    row += 1
+
+    // Partial TP
+    if usePartialTP
+        table.cell(panel, 0, row, "Partial TP", text_color=color.white, text_size=size.tiny)
+        partialTxt = in_position and not partial_taken ? str.tostring(partial_tp_price, format.mintick) : partial_taken ? "✅ Taken" : "—"
+        table.cell(panel, 1, row, partialTxt, text_color=partial_taken ? colBull : colPartial, text_size=size.tiny)
+        row += 1
+
+    // Trailing
+    if useTrailingStop
+        table.cell(panel, 0, row, "Trailing", text_color=color.white, text_size=size.tiny)
+        trailTxt = trail_activated ? "🔥 ACTIVE" : in_position ? "⏳ Wait " + str.tostring(trailActivation, "#.#") + "R" : "—"
+        table.cell(panel, 1, row, trailTxt, text_color=trail_activated ? color.orange : color.gray, text_size=size.tiny)
+        row += 1
+
+    // Liquidation
+    liqCol = distToLiq < 10 ? colBear : distToLiq < 15 ? color.orange : colLiq
+    table.cell(panel, 0, row, "⚠️ Liq Dist", text_color=color.white, text_size=size.tiny)
+    liqTxt = in_position ? str.tostring(distToLiq, "#.#") + "%" : "—"
+    table.cell(panel, 1, row, liqTxt, text_color=liqCol, text_size=size.tiny)
+    row += 1
+
+    // DCA
+    table.cell(panel, 0, row, "DCA", text_color=color.white, text_size=size.tiny)
+    dcaTxt = use_dca ? str.tostring(dca_count) + "/" + str.tostring(dca_max_entries) : "OFF"
+    table.cell(panel, 1, row, dcaTxt, text_color=use_dca ? colDCA : color.gray, text_size=size.tiny)
+    row += 1
+
+    // Separator
+    table.cell(panel, 0, row, "═══════════", text_color=color.gray, text_size=size.tiny, bgcolor=color.new(color.gray, 85))
+    table.merge_cells(panel, 0, row, 1, row)
+    row += 1
+
+    // Performance Header
+    table.cell(panel, 0, row, "📈 PERFORMANCE", text_color=color.white, text_size=size.small, bgcolor=color.new(#26A69A, 60))
+    table.merge_cells(panel, 0, row, 1, row)
+    row += 1
+
+    // Trades
+    table.cell(panel, 0, row, "Trades", text_color=color.white, text_size=size.tiny)
+    table.cell(panel, 1, row, str.tostring(totalTrades), text_color=color.white, text_size=size.tiny)
+    row += 1
+
+    // Win Rate
+    wrCol = winRate >= 50 ? colBull : winRate >= 40 ? color.yellow : colBear
+    table.cell(panel, 0, row, "Win Rate", text_color=color.white, text_size=size.tiny)
+    table.cell(panel, 1, row, str.tostring(winRate, "#.#") + "%", text_color=wrCol, text_size=size.tiny)
+    row += 1
+
+    // Profit Factor
+    pfCol = profitFactor >= 2.0 ? colBull : profitFactor >= 1.5 ? color.yellow : colBear
+    table.cell(panel, 0, row, "Profit Factor", text_color=color.white, text_size=size.tiny)
+    table.cell(panel, 1, row, str.tostring(profitFactor, "#.##"), text_color=pfCol, text_size=size.tiny)
+    row += 1
+
+    // Avg R:R
+    rrCol = avgRR >= 2.0 ? colBull : avgRR >= 1.5 ? color.yellow : colBear
+    table.cell(panel, 0, row, "Avg R:R", text_color=color.white, text_size=size.tiny)
+    table.cell(panel, 1, row, str.tostring(avgRR, "#.##"), text_color=rrCol, text_size=size.tiny)
+    row += 1
+
+    // Net Profit
+    netCol = strategy.netprofit >= 0 ? colBull : colBear
+    table.cell(panel, 0, row, "Net P&L", text_color=color.white, text_size=size.tiny)
+    table.cell(panel, 1, row, "$" + str.tostring(strategy.netprofit, "#"), text_color=netCol, text_size=size.tiny)
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 🔔 ALERT CONDITIONS
+// ══════════════════════════════════════════════════════════════════════════════
+
+alertcondition(longCond, title="🟢 Long Signal", message='{"type":"LONG","price":"{{close}}","adx":"' + str.tostring(adxValue) + '"}')
+alertcondition(shortCond, title="🔴 Short Signal", message='{"type":"SHORT","price":"{{close}}","adx":"' + str.tostring(adxValue) + '"}')
+alertcondition(longCond or shortCond, title="⚡ Any Entry", message='{"type":"ENTRY","price":"{{close}}"}')
