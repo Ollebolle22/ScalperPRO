@@ -797,6 +797,6 @@ if showInfoPanel
 // 🔔 ALERT CONDITIONS
 // ══════════════════════════════════════════════════════════════════════════════
 
-alertcondition(longCond, title="🟢 Long Signal", message='{"type":"LONG","price":"{{close}}","adx":"' + str.tostring(adxValue) + '"}')
-alertcondition(shortCond, title="🔴 Short Signal", message='{"type":"SHORT","price":"{{close}}","adx":"' + str.tostring(adxValue) + '"}')
+alertcondition(longCond, title="🟢 Long Signal", message='{"type":"LONG","price":"{{close}}"}')
+alertcondition(shortCond, title="🔴 Short Signal", message='{"type":"SHORT","price":"{{close}}"}')
 alertcondition(longCond or shortCond, title="⚡ Any Entry", message='{"type":"ENTRY","price":"{{close}}"}')
