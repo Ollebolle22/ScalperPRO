@@ -600,7 +600,7 @@ fill(pFast, pSlow, emaFast > emaSlow ? color.new(colBull, 90) : color.new(colBea
 // SL/TP Lines
 plot(showSLTP and in_position ? stop_loss : na, "SL", colSL, 2, plot.style_linebr)
 plot(showSLTP and in_position ? take_profit : na, "TP", colTP, 2, plot.style_linebr)
-plot(showPartialTP and in_position and not partial_taken ? partial_tp_price : na, "Partial TP", colPartial, 2, plot.style_linebr, style=plot.style_circles)
+plot(showPartialTP and in_position and not partial_taken ? partial_tp_price : na, "Partial TP", colPartial, 2, plot.style_circles)
 plot(showLiqLine and in_position ? liq_price : na, "Liq", colLiq, 2, plot.style_linebr)
 
 // Breakeven Line
@@ -608,7 +608,7 @@ plot(showBreakeven and in_position and breakeven_moved ? avg_entry : na, "Breake
 
 // DCA levels
 dca1 = showDCALevels and use_dca and in_position and dca_count < dca_max_entries ? calc_dca_trigger(avg_entry, is_long, dca_count) : na
-plot(dca1, "Next DCA", color.new(colDCA, 40), 2, plot.style_linebr, style=plot.style_cross)
+plot(dca1, "Next DCA", color.new(colDCA, 40), 2, plot.style_cross)
 
 // Background för ADX
 bgcolor(useADX and adxValue < 20 ? color.new(color.red, 95) : na, title="Weak Trend Warning")
