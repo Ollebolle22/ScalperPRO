@@ -634,7 +634,7 @@ currentR = in_position and not na(avg_entry) and not na(initial_sl_dist) ? (is_l
 // ══════════════════════════════════════════════════════════════════════════════
 
 if showInfoPanel
-    var table panel = table.new(position.top_right, 2, 25, bgcolor=color.new(#000000, 80), border_width=2, border_color=color.gray)
+    var table panel = table.new(position.top_right, 2, 28, bgcolor=color.new(#000000, 80), border_width=2, border_color=color.gray)
 
     // Header
     table.cell(panel, 0, 0, "⚡ SCALPER v8.0 [15M]", text_color=color.white, text_size=size.normal, bgcolor=color.new(#2962FF, 50))
