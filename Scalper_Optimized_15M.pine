@@ -382,8 +382,8 @@ if longCond and not in_position
 
         if showTradeLabels
             rr = (tp - close) / sl_dist
-            label.new(bar_index, low, "🟢 LONG\n💰 " + str.tostring(close, format.mintick) + "\n🛑 SL: " + str.tostring(safe_sl, format.mintick) + "\n🎯 TP: " + str.tostring(tp, format.mintick) + "\n📊 R:R " + str.tostring(rr, "#.#") + "\n💪 ADX: " + str.tostring(adxValue, "#"),
-                 style=label.style_label_up, color=color.new(colBull, 10), textcolor=color.white, size=size.small)
+            label.new(bar_index, low - atrValue * 2, "🟢 LONG\n💰 " + str.tostring(close, format.mintick) + "\n🛑 SL: " + str.tostring(safe_sl, format.mintick) + "\n🎯 TP: " + str.tostring(tp, format.mintick) + "\n📊 R:R " + str.tostring(rr, "#.#") + "\n💪 ADX: " + str.tostring(adxValue, "#"),
+                 style=label.style_label_up, color=color.new(colBull, 10), textcolor=color.white, size=size.small, yloc=yloc.price)
 
 // SHORT ENTRY
 if shortCond and not in_position
@@ -421,8 +421,8 @@ if shortCond and not in_position
 
         if showTradeLabels
             rr = (close - tp) / sl_dist
-            label.new(bar_index, high, "🔴 SHORT\n💰 " + str.tostring(close, format.mintick) + "\n🛑 SL: " + str.tostring(safe_sl, format.mintick) + "\n🎯 TP: " + str.tostring(tp, format.mintick) + "\n📊 R:R " + str.tostring(rr, "#.#") + "\n💪 ADX: " + str.tostring(adxValue, "#"),
-                 style=label.style_label_down, color=color.new(colBear, 10), textcolor=color.white, size=size.small)
+            label.new(bar_index, high + atrValue * 2, "🔴 SHORT\n💰 " + str.tostring(close, format.mintick) + "\n🛑 SL: " + str.tostring(safe_sl, format.mintick) + "\n🎯 TP: " + str.tostring(tp, format.mintick) + "\n📊 R:R " + str.tostring(rr, "#.#") + "\n💪 ADX: " + str.tostring(adxValue, "#"),
+                 style=label.style_label_down, color=color.new(colBear, 10), textcolor=color.white, size=size.small, yloc=yloc.price)
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 🔄 DCA (FÖRBÄTTRAD)
@@ -461,8 +461,8 @@ if use_dca and in_position and dca_count < dca_max_entries
                 alert('{"code":"' + code + '","price":"' + str.tostring(close, "#.##") + '","type":"DCA","num":"' + str.tostring(dca_count) + '"}', alert.freq_once_per_bar)
 
                 if showTradeLabels
-                    label.new(bar_index, low, "🔄 DCA#" + str.tostring(dca_count) + "\n📊 Avg: " + str.tostring(new_avg, format.mintick),
-                         style=label.style_label_up, color=color.new(colDCA, 10), textcolor=color.white, size=size.tiny)
+                    label.new(bar_index, low - atrValue * 1.5, "🔄 DCA#" + str.tostring(dca_count) + "\n📊 Avg: " + str.tostring(new_avg, format.mintick),
+                         style=label.style_label_up, color=color.new(colDCA, 10), textcolor=color.white, size=size.tiny, yloc=yloc.price)
 
         else if is_short
             raw_sl = new_avg + (atrValue * atrMultSL)
@@ -483,8 +483,8 @@ if use_dca and in_position and dca_count < dca_max_entries
                 alert('{"code":"' + code + '","price":"' + str.tostring(close, "#.##") + '","type":"DCA","num":"' + str.tostring(dca_count) + '"}', alert.freq_once_per_bar)
 
                 if showTradeLabels
-                    label.new(bar_index, high, "🔄 DCA#" + str.tostring(dca_count) + "\n📊 Avg: " + str.tostring(new_avg, format.mintick),
-                         style=label.style_label_down, color=color.new(colDCA, 10), textcolor=color.white, size=size.tiny)
+                    label.new(bar_index, high + atrValue * 1.5, "🔄 DCA#" + str.tostring(dca_count) + "\n📊 Avg: " + str.tostring(new_avg, format.mintick),
+                         style=label.style_label_down, color=color.new(colDCA, 10), textcolor=color.white, size=size.tiny, yloc=yloc.price)
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 🚨 NÖDBROMS
@@ -498,8 +498,8 @@ if in_position and not na(avg_entry)
         alert('{"code":"' + code + '","type":"EMERGENCY"}', alert.freq_once_per_bar)
 
         if showTradeLabels
-            label.new(bar_index, is_long ? low : high, "⚠️ NÖDSTOPP!\n🚨 För nära likvidation",
-                 style=is_long ? label.style_label_up : label.style_label_down, color=colLiq, textcolor=color.white, size=size.normal)
+            label.new(bar_index, is_long ? (low - atrValue * 2.5) : (high + atrValue * 2.5), "⚠️ NÖDSTOPP!\n🚨 För nära likvidation",
+                 style=is_long ? label.style_label_up : label.style_label_down, color=colLiq, textcolor=color.white, size=size.normal, yloc=yloc.price)
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 💰 PARTIAL TAKE PROFIT (NYTT!)
@@ -520,8 +520,8 @@ if usePartialTP and in_position and not partial_taken and not na(partial_tp_pric
 
         if showTradeLabels
             profit_pct = is_long ? (partial_tp_price - avg_entry) / avg_entry * 100 : (avg_entry - partial_tp_price) / avg_entry * 100
-            label.new(bar_index, is_long ? high : low, "💰 Partial TP\n✅ " + str.tostring(partialTPPercent, "#") + "% @ +" + str.tostring(profit_pct, "#.#") + "%",
-                 style=is_long ? label.style_label_down : label.style_label_up, color=color.new(colPartial, 10), textcolor=color.white, size=size.small)
+            label.new(bar_index, is_long ? (high + atrValue * 1.5) : (low - atrValue * 1.5), "💰 Partial TP\n✅ " + str.tostring(partialTPPercent, "#") + "% @ +" + str.tostring(profit_pct, "#.#") + "%",
+                 style=is_long ? label.style_label_down : label.style_label_up, color=color.new(colPartial, 10), textcolor=color.white, size=size.small, yloc=yloc.price)
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 🎯 RISK MANAGEMENT (BREAKEVEN & TRAILING)
@@ -544,22 +544,22 @@ if in_position and not na(avg_entry) and not na(initial_sl_dist)
             stop_loss := avg_entry + (atrValue * 0.1)  // Lite över breakeven
             breakeven_moved := true
             if showTradeLabels
-                label.new(bar_index, low, "⚖️ Breakeven\n🔒 SL flyttad", style=label.style_label_up, color=color.new(color.blue, 20), textcolor=color.white, size=size.tiny)
+                label.new(bar_index, low - atrValue, "⚖️ Breakeven\n🔒 SL flyttad", style=label.style_label_up, color=color.new(color.blue, 20), textcolor=color.white, size=size.tiny, yloc=yloc.price)
 
         else if is_short and stop_loss > avg_entry
             stop_loss := avg_entry - (atrValue * 0.1)
             breakeven_moved := true
             if showTradeLabels
-                label.new(bar_index, high, "⚖️ Breakeven\n🔒 SL flyttad", style=label.style_label_down, color=color.new(color.blue, 20), textcolor=color.white, size=size.tiny)
+                label.new(bar_index, high + atrValue, "⚖️ Breakeven\n🔒 SL flyttad", style=label.style_label_down, color=color.new(color.blue, 20), textcolor=color.white, size=size.tiny, yloc=yloc.price)
 
     // Trailing Stop Activation
     if useTrailingStop and current_r >= trailActivation
         if not trail_activated
             trail_activated := true
             if showTradeLabels
-                label.new(bar_index, is_long ? low : high, "🔥 Trailing Aktiverad",
+                label.new(bar_index, is_long ? (low - atrValue) : (high + atrValue), "🔥 Trailing Aktiverad",
                      style=is_long ? label.style_label_up : label.style_label_down,
-                     color=color.new(color.orange, 20), textcolor=color.white, size=size.tiny)
+                     color=color.new(color.orange, 20), textcolor=color.white, size=size.tiny, yloc=yloc.price)
 
         // Update trailing stop
         if is_long
