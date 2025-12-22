@@ -348,6 +348,7 @@ get_bot_code(action) =>
 // LONG ENTRY
 if longCond and not in_position
     // DCA-aware SL calculation: ensure SL is beyond furthest DCA level
+    raw_sl = 0.0
     if use_dca and dca_max_entries > 1
         // Calculate distance to furthest DCA level
         furthest_dca_dist = atrValue * dca_atr_mult * dca_max_entries
@@ -355,9 +356,9 @@ if longCond and not in_position
         min_sl_dist = furthest_dca_dist + (atrValue * 0.5)
         // Use the larger distance (further from entry)
         actual_sl_dist = math.max(atrValue * atrMultSL, min_sl_dist)
-        raw_sl = close - actual_sl_dist
+        raw_sl := close - actual_sl_dist
     else
-        raw_sl = close - (atrValue * atrMultSL)
+        raw_sl := close - (atrValue * atrMultSL)
 
     safe_sl = calc_safe_sl(close, raw_sl, true)
     sl_dist = close - safe_sl
@@ -399,6 +400,7 @@ if longCond and not in_position
 // SHORT ENTRY
 if shortCond and not in_position
     // DCA-aware SL calculation: ensure SL is beyond furthest DCA level
+    raw_sl = 0.0
     if use_dca and dca_max_entries > 1
         // Calculate distance to furthest DCA level
         furthest_dca_dist = atrValue * dca_atr_mult * dca_max_entries
@@ -406,9 +408,9 @@ if shortCond and not in_position
         min_sl_dist = furthest_dca_dist + (atrValue * 0.5)
         // Use the larger distance (further from entry)
         actual_sl_dist = math.max(atrValue * atrMultSL, min_sl_dist)
-        raw_sl = close + actual_sl_dist
+        raw_sl := close + actual_sl_dist
     else
-        raw_sl = close + (atrValue * atrMultSL)
+        raw_sl := close + (atrValue * atrMultSL)
 
     safe_sl = calc_safe_sl(close, raw_sl, false)
     sl_dist = safe_sl - close
