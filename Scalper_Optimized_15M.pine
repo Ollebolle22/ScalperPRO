@@ -439,7 +439,7 @@ if shortCond and not in_position
 // ══════════════════════════════════════════════════════════════════════════════
 
 if use_dca and in_position and dca_count < dca_max_entries
-    dca_trigger = calc_dca_trigger(avg_entry, is_long, dca_count)
+    dca_trigger = calc_dca_trigger(entry_price, is_long, dca_count)
     dca_hit = (is_long and low <= dca_trigger) or (is_short and high >= dca_trigger)
 
     // NYTT: Kontrollera att trenden håller i sig
@@ -622,8 +622,8 @@ plot(showLiqLine and in_position ? liq_price : na, "Liq", colLiq, 2, plot.style_
 // Breakeven Line
 plot(showBreakeven and in_position and breakeven_moved ? avg_entry : na, "Breakeven", color.new(color.blue, 30), 1, plot.style_circles)
 
-// DCA levels
-dca1 = showDCALevels and use_dca and in_position and dca_count < dca_max_entries ? calc_dca_trigger(avg_entry, is_long, dca_count) : na
+// DCA levels (använder entry_price, inte avg_entry)
+dca1 = showDCALevels and use_dca and in_position and dca_count < dca_max_entries ? calc_dca_trigger(entry_price, is_long, dca_count) : na
 plot(dca1, "Next DCA", color.new(colDCA, 40), 2, plot.style_cross)
 
 // Background för ADX
