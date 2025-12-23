@@ -2,7 +2,7 @@
 // © Optimized Momentum Scalper - 15M Timeframe Specialist
 
 //@version=6
-strategy("⚡ Momentum Scalper PRO v8.4 [15M Optimized]",
+strategy("⚡ Momentum Scalper PRO v8.5 [15M Optimized]",
      overlay=true,
      calc_on_every_tick=false,
      process_orders_on_close=true,
@@ -360,7 +360,7 @@ shortCond = shortSignal and rsiShortOK and trendAlignShort and volCondition and 
 // ══════════════════════════════════════════════════════════════════════════════
 
 var float entry_price = na
-var float avg_entry = na  // UNIT COST - genomsnittligt inköpspris
+var float avg_entry = na  // För interna SL/TP beräkningar
 var float stop_loss = na
 var float take_profit = na
 var float partial_tp1_price = na
@@ -385,10 +385,10 @@ var float trail_low = na
 
 in_position = strategy.position_size != 0
 
-// Reset på flat (unit cost återställs till 0 när position stängs)
+// Reset på flat
 if not in_position and (is_long[1] or is_short[1])
     entry_price := na
-    avg_entry := na  // UNIT COST resettas
+    avg_entry := na
     stop_loss := na
     take_profit := na
     partial_tp1_price := na
@@ -445,7 +445,7 @@ if longCond and not in_position
 
     if sl_to_liq_pct >= min_liq_distance
         entry_price := close
-        avg_entry := close  // UNIT COST initialt = entry price
+        avg_entry := close
         stop_loss := safe_sl
         take_profit := tp
 
@@ -498,7 +498,7 @@ if shortCond and not in_position
 
     if sl_to_liq_pct >= min_liq_distance
         entry_price := close
-        avg_entry := close  // UNIT COST initialt = entry price
+        avg_entry := close
         stop_loss := safe_sl
         take_profit := tp
 
@@ -558,7 +558,7 @@ if use_dca and in_position and dca_count < dca_max_entries
             new_liq = calc_liq_price(new_avg, true)
 
             if (new_sl - new_liq) / new_avg * 100 >= min_liq_distance
-                avg_entry := new_avg  // UNIT COST uppdateras med DCA
+                avg_entry := new_avg
                 stop_loss := new_sl
                 liq_price := new_liq
                 take_profit := new_avg + (atrValue * atrMultTP)
@@ -587,7 +587,7 @@ if use_dca and in_position and dca_count < dca_max_entries
             new_liq = calc_liq_price(new_avg, false)
 
             if (new_liq - new_sl) / new_avg * 100 >= min_liq_distance
-                avg_entry := new_avg  // UNIT COST uppdateras med DCA
+                avg_entry := new_avg
                 stop_loss := new_sl
                 liq_price := new_liq
                 take_profit := new_avg - (atrValue * atrMultTP)
@@ -644,7 +644,7 @@ if usePartialTP and partial1_enabled and in_position and not partial1_taken and 
         partial1_taken := true
 
         if showTradeLabels
-            profit_pct = is_long ? (partial_tp1_price - avg_entry) / avg_entry * 100 : (avg_entry - partial_tp1_price) / avg_entry * 100
+            profit_pct = is_long ? (partial_tp1_price - strategy.position_avg_price) / strategy.position_avg_price * 100 : (strategy.position_avg_price - partial_tp1_price) / strategy.position_avg_price * 100
             label.new(bar_index, is_long ? (high + atrValue * 1.5) : (low - atrValue * 1.5), "💰 TP1\n✅ " + str.tostring(partial1_pct, "#") + "% @ +" + str.tostring(profit_pct, "#.#") + "%",
                  style=is_long ? label.style_label_down : label.style_label_up, color=color.new(colPartial, 10), textcolor=color.white, size=size.small, yloc=yloc.price)
 
@@ -663,7 +663,7 @@ if usePartialTP and partial2_enabled and in_position and not partial2_taken and 
         partial2_taken := true
 
         if showTradeLabels
-            profit_pct = is_long ? (partial_tp2_price - avg_entry) / avg_entry * 100 : (avg_entry - partial_tp2_price) / avg_entry * 100
+            profit_pct = is_long ? (partial_tp2_price - strategy.position_avg_price) / strategy.position_avg_price * 100 : (strategy.position_avg_price - partial_tp2_price) / strategy.position_avg_price * 100
             label.new(bar_index, is_long ? (high + atrValue * 1.5) : (low - atrValue * 1.5), "💰 TP2\n✅ " + str.tostring(partial2_pct, "#") + "% @ +" + str.tostring(profit_pct, "#.#") + "%",
                  style=is_long ? label.style_label_down : label.style_label_up, color=color.new(colPartial, 10), textcolor=color.white, size=size.small, yloc=yloc.price)
 
@@ -682,7 +682,7 @@ if usePartialTP and partial3_enabled and in_position and not partial3_taken and 
         partial3_taken := true
 
         if showTradeLabels
-            profit_pct = is_long ? (partial_tp3_price - avg_entry) / avg_entry * 100 : (avg_entry - partial_tp3_price) / avg_entry * 100
+            profit_pct = is_long ? (partial_tp3_price - strategy.position_avg_price) / strategy.position_avg_price * 100 : (strategy.position_avg_price - partial_tp3_price) / strategy.position_avg_price * 100
             label.new(bar_index, is_long ? (high + atrValue * 1.5) : (low - atrValue * 1.5), "💰 TP3\n✅ " + str.tostring(partial3_pct, "#") + "% @ +" + str.tostring(profit_pct, "#.#") + "%",
                  style=is_long ? label.style_label_down : label.style_label_up, color=color.new(colPartial, 10), textcolor=color.white, size=size.small, yloc=yloc.price)
 
@@ -701,7 +701,7 @@ if usePartialTP and partial4_enabled and in_position and not partial4_taken and 
         partial4_taken := true
 
         if showTradeLabels
-            profit_pct = is_long ? (partial_tp4_price - avg_entry) / avg_entry * 100 : (avg_entry - partial_tp4_price) / avg_entry * 100
+            profit_pct = is_long ? (partial_tp4_price - strategy.position_avg_price) / strategy.position_avg_price * 100 : (strategy.position_avg_price - partial_tp4_price) / strategy.position_avg_price * 100
             label.new(bar_index, is_long ? (high + atrValue * 1.5) : (low - atrValue * 1.5), "💰 TP4\n✅ " + str.tostring(partial4_pct, "#") + "% @ +" + str.tostring(profit_pct, "#.#") + "%",
                  style=is_long ? label.style_label_down : label.style_label_up, color=color.new(colPartial, 10), textcolor=color.white, size=size.small, yloc=yloc.price)
 
@@ -803,8 +803,8 @@ sl_active = in_position and (not use_dca or dca_count >= dca_max_entries)
 plot(showSLTP and sl_active ? stop_loss : na, "SL", colSL, 2, plot.style_linebr)
 plot(showSLTP and in_position ? take_profit : na, "TP", colTP, 2, plot.style_linebr)
 
-// UNIT COST LINE - visar genomsnittligt inköpspris
-plot(in_position ? avg_entry : na, "🏷️ Unit Cost", color.new(color.yellow, 0), 2, plot.style_line)
+// UNIT COST LINE - visar EXAKT inköpspris (från TradingView)
+plot(in_position ? strategy.position_avg_price : na, "🏷️ Unit Cost", color.new(color.yellow, 0), 2, plot.style_line)
 
 // Multi-Level Partial TP Lines
 plot(showPartialTP and in_position and partial1_enabled and not partial1_taken ? partial_tp1_price : na, "Partial TP1", colPartial, 1, plot.style_circles)
@@ -848,7 +848,7 @@ if showInfoPanel
     var table panel = table.new(position.top_right, 2, 28, bgcolor=color.new(#000000, 80), border_width=2, border_color=color.gray)
 
     // Header
-    table.cell(panel, 0, 0, "⚡ SCALPER v8.4 [15M]", text_color=color.white, text_size=size.normal, bgcolor=color.new(#2962FF, 50))
+    table.cell(panel, 0, 0, "⚡ SCALPER v8.5 [15M]", text_color=color.white, text_size=size.normal, bgcolor=color.new(#2962FF, 50))
     table.merge_cells(panel, 0, 0, 1, 0)
 
     row = 1
@@ -907,9 +907,9 @@ if showInfoPanel
     table.cell(panel, 1, row, posTxt, text_color=posCol, text_size=size.tiny)
     row += 1
 
-    // 🏷️ UNIT COST - genomsnittligt inköpspris
+    // 🏷️ UNIT COST - EXAKT inköpspris
     table.cell(panel, 0, row, "🏷️ Unit Cost", text_color=color.white, text_size=size.tiny)
-    table.cell(panel, 1, row, in_position ? str.tostring(avg_entry, format.mintick) : "—", text_color=color.yellow, text_size=size.tiny)
+    table.cell(panel, 1, row, in_position ? str.tostring(strategy.position_avg_price, format.mintick) : "—", text_color=color.yellow, text_size=size.tiny)
     row += 1
 
     // Total Entries (initial + DCA)
