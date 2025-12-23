@@ -624,15 +624,18 @@ if use_dca and in_position and dca_count < dca_max_entries
 // 🚨 NÖDBROMS
 // ══════════════════════════════════════════════════════════════════════════════
 
-if in_position and not na(avg_entry)
-    if is_near_liquidation(avg_entry, close, is_long)
+if in_position and not na(liq_price)
+    // Använd sparad liq_price istället för att beräkna om
+    dist_to_liq = is_long ? (close - liq_price) / close * 100 : (liq_price - close) / close * 100
+
+    if dist_to_liq < min_liq_distance
         code = get_bot_code(is_long ? "EXIT-LONG" : "EXIT-SHORT")
         strategy.close_all(comment=code)
 
         alert('{"code":"' + code + '","amountPerTrade":"' + str.tostring(math.abs(strategy.position_size), "#.########") + '","amountPerTradeType":"quote"}', alert.freq_once_per_bar)
 
         if showTradeLabels
-            label.new(bar_index, is_long ? (low - atrValue * 2.5) : (high + atrValue * 2.5), "⚠️ NÖDSTOPP!\n🚨 För nära likvidation",
+            label.new(bar_index, is_long ? (low - atrValue * 2.5) : (high + atrValue * 2.5), "⚠️ NÖDSTOPP!\n🚨 För nära likvidation\n📉 " + str.tostring(dist_to_liq, "#.#") + "% till liq",
                  style=is_long ? label.style_label_up : label.style_label_down, color=colLiq, textcolor=color.white, size=size.normal, yloc=yloc.price)
 
 // ══════════════════════════════════════════════════════════════════════════════
