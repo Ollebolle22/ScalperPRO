@@ -941,17 +941,16 @@ if showInfoPanel
 
     // SL (inactive until all DCAs complete)
     table.cell(panel, 0, row, "Stop Loss", text_color=color.white, text_size=size.tiny)
+    slTxt = "—"
+    slCol = color.gray
     if in_position and use_dca and dca_count < dca_max_entries
-        slTxt = "⏸️ Väntar DCA"
-        slCol = color.gray
+        slTxt := "⏸️ Väntar DCA"
+        slCol := color.gray
     else if in_position
-        slTxt = str.tostring(stop_loss, format.mintick)
+        slTxt := str.tostring(stop_loss, format.mintick)
         if breakeven_moved
-            slTxt += " 🔒"
-        slCol = colSL
-    else
-        slTxt = "—"
-        slCol = color.gray
+            slTxt := slTxt + " 🔒"
+        slCol := colSL
     table.cell(panel, 1, row, slTxt, text_color=slCol, text_size=size.tiny)
     row += 1
 
