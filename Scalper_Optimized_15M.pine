@@ -2,7 +2,7 @@
 // © Optimized Momentum Scalper - 15M Timeframe Specialist
 
 //@version=6
-strategy("⚡ Momentum Scalper PRO v9.1 [15M Optimized]",
+strategy("⚡ Momentum Scalper PRO v9.2 [15M Optimized]",
      overlay=true,
      calc_on_every_tick=false,
      process_orders_on_close=true,
@@ -477,7 +477,7 @@ if longCond and not in_position
         total_qty := entry_qty
 
         code = get_bot_code("ENTER-LONG")
-        strategy.entry("Long", strategy.long, qty=entry_qty, comment=code)
+        strategy.entry("Long", strategy.long, qty=entry_qty, comment="L")
 
         alert('{"code":"' + code + '","amountPerTrade":"' + str.tostring(entry_qty, "#.########") + '","amountPerTradeType":"quote"}', alert.freq_once_per_bar)
 
@@ -532,7 +532,7 @@ if shortCond and not in_position
         total_qty := entry_qty
 
         code = get_bot_code("ENTER-SHORT")
-        strategy.entry("Short", strategy.short, qty=entry_qty, comment=code)
+        strategy.entry("Short", strategy.short, qty=entry_qty, comment="S")
 
         alert('{"code":"' + code + '","amountPerTrade":"' + str.tostring(entry_qty, "#.########") + '","amountPerTradeType":"quote"}', alert.freq_once_per_bar)
 
@@ -580,7 +580,7 @@ if use_dca and in_position and dca_count < dca_max_entries
                 dca_count += 1
 
                 code = get_bot_code("ENTER-LONG")
-                strategy.entry("Long", strategy.long, qty=dca_qty, comment=code)
+                strategy.entry("Long", strategy.long, qty=dca_qty, comment="+" + str.tostring(dca_count))
 
                 alert('{"code":"' + code + '","amountPerTrade":"' + str.tostring(dca_qty, "#.########") + '","amountPerTradeType":"quote"}', alert.freq_once_per_bar)
 
@@ -610,7 +610,7 @@ if use_dca and in_position and dca_count < dca_max_entries
                 dca_count += 1
 
                 code = get_bot_code("ENTER-SHORT")
-                strategy.entry("Short", strategy.short, qty=dca_qty, comment=code)
+                strategy.entry("Short", strategy.short, qty=dca_qty, comment="+" + str.tostring(dca_count))
 
                 alert('{"code":"' + code + '","amountPerTrade":"' + str.tostring(dca_qty, "#.########") + '","amountPerTradeType":"quote"}', alert.freq_once_per_bar)
 
@@ -628,7 +628,7 @@ if in_position and not na(liq_price)
 
     if dist_to_liq < min_liq_distance
         code = get_bot_code(is_long ? "EXIT-LONG" : "EXIT-SHORT")
-        strategy.close_all(comment=code)
+        strategy.close_all(comment="⚠️LIQ")
 
         alert('{"code":"' + code + '","amountPerTrade":"' + str.tostring(math.abs(strategy.position_size), "#.########") + '","amountPerTradeType":"quote"}', alert.freq_once_per_bar)
 
@@ -649,9 +649,9 @@ if usePartialTP and partial1_enabled and in_position and not partial1_taken and 
         code = get_bot_code(is_long ? "EXIT-LONG" : "EXIT-SHORT")
 
         if is_long
-            strategy.close("Long", qty=math.abs(partial_qty), comment=code)
+            strategy.close("Long", qty=math.abs(partial_qty), comment="TP1")
         else
-            strategy.close("Short", qty=math.abs(partial_qty), comment=code)
+            strategy.close("Short", qty=math.abs(partial_qty), comment="TP1")
 
         alert('{"code":"' + code + '","amountPerTrade":"' + str.tostring(math.abs(partial_qty), "#.########") + '","amountPerTradeType":"quote"}', alert.freq_once_per_bar)
 
@@ -671,9 +671,9 @@ if usePartialTP and partial2_enabled and in_position and not partial2_taken and 
         code = get_bot_code(is_long ? "EXIT-LONG" : "EXIT-SHORT")
 
         if is_long
-            strategy.close("Long", qty=math.abs(partial_qty), comment=code)
+            strategy.close("Long", qty=math.abs(partial_qty), comment="TP2")
         else
-            strategy.close("Short", qty=math.abs(partial_qty), comment=code)
+            strategy.close("Short", qty=math.abs(partial_qty), comment="TP2")
 
         alert('{"code":"' + code + '","amountPerTrade":"' + str.tostring(math.abs(partial_qty), "#.########") + '","amountPerTradeType":"quote"}', alert.freq_once_per_bar)
 
@@ -693,9 +693,9 @@ if usePartialTP and partial3_enabled and in_position and not partial3_taken and 
         code = get_bot_code(is_long ? "EXIT-LONG" : "EXIT-SHORT")
 
         if is_long
-            strategy.close("Long", qty=math.abs(partial_qty), comment=code)
+            strategy.close("Long", qty=math.abs(partial_qty), comment="TP3")
         else
-            strategy.close("Short", qty=math.abs(partial_qty), comment=code)
+            strategy.close("Short", qty=math.abs(partial_qty), comment="TP3")
 
         alert('{"code":"' + code + '","amountPerTrade":"' + str.tostring(math.abs(partial_qty), "#.########") + '","amountPerTradeType":"quote"}', alert.freq_once_per_bar)
 
@@ -715,9 +715,9 @@ if usePartialTP and partial4_enabled and in_position and not partial4_taken and 
         code = get_bot_code(is_long ? "EXIT-LONG" : "EXIT-SHORT")
 
         if is_long
-            strategy.close("Long", qty=math.abs(partial_qty), comment=code)
+            strategy.close("Long", qty=math.abs(partial_qty), comment="TP4")
         else
-            strategy.close("Short", qty=math.abs(partial_qty), comment=code)
+            strategy.close("Short", qty=math.abs(partial_qty), comment="TP4")
 
         alert('{"code":"' + code + '","amountPerTrade":"' + str.tostring(math.abs(partial_qty), "#.########") + '","amountPerTradeType":"quote"}', alert.freq_once_per_bar)
 
@@ -789,18 +789,18 @@ if in_position and not na(stop_loss) and not na(take_profit)
     if is_long
         if dca_complete
             // All DCAs done - use both SL and TP
-            strategy.exit("Exit Long", "Long", stop=stop_loss, limit=take_profit, comment_profit=exit_code, comment_loss=exit_code)
+            strategy.exit("Exit Long", "Long", stop=stop_loss, limit=take_profit, comment_profit="TP✓", comment_loss="SL✗")
         else
             // DCAs still pending - only use TP, NO SL
-            strategy.exit("Exit Long", "Long", limit=take_profit, comment_profit=exit_code)
+            strategy.exit("Exit Long", "Long", limit=take_profit, comment_profit="TP✓")
 
     if is_short
         if dca_complete
             // All DCAs done - use both SL and TP
-            strategy.exit("Exit Short", "Short", stop=stop_loss, limit=take_profit, comment_profit=exit_code, comment_loss=exit_code)
+            strategy.exit("Exit Short", "Short", stop=stop_loss, limit=take_profit, comment_profit="TP✓", comment_loss="SL✗")
         else
             // DCAs still pending - only use TP, NO SL
-            strategy.exit("Exit Short", "Short", limit=take_profit, comment_profit=exit_code)
+            strategy.exit("Exit Short", "Short", limit=take_profit, comment_profit="TP✓")
 
 // Exit alerts
 if strategy.position_size == 0 and strategy.position_size[1] > 0
@@ -873,7 +873,7 @@ if showInfoPanel
     var table panel = table.new(position.top_right, 2, 30, bgcolor=color.new(#000000, 80), border_width=2, border_color=color.gray)
 
     // Header
-    table.cell(panel, 0, 0, "⚡ SCALPER v9.1 [15M]", text_color=color.white, text_size=size.normal, bgcolor=color.new(#2962FF, 50))
+    table.cell(panel, 0, 0, "⚡ SCALPER v9.2 [15M]", text_color=color.white, text_size=size.normal, bgcolor=color.new(#2962FF, 50))
     table.merge_cells(panel, 0, 0, 1, 0)
 
     row = 1
