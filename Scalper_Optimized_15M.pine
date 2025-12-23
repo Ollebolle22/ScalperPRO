@@ -2,7 +2,7 @@
 // © Optimized Momentum Scalper - 15M Timeframe Specialist
 
 //@version=6
-strategy("⚡ Momentum Scalper PRO v8.5 [15M Optimized]",
+strategy("⚡ Momentum Scalper PRO v9.0 [15M Optimized]",
      overlay=true,
      calc_on_every_tick=false,
      process_orders_on_close=true,
@@ -471,11 +471,12 @@ if longCond and not in_position
 
         // Dynamic position sizing
         qty_pct = use_dynamic_sizing ? math.min(position_pct, 100 / (sl_dist / close * 100)) : position_pct
-
-        strategy.entry("Long", strategy.long, qty=strategy.equity * qty_pct / 100 / close, comment="L")
+        entry_qty = strategy.equity * qty_pct / 100 / close
 
         code = get_bot_code("ENTER-LONG")
-        alert('{"code":"' + code + '","price":"' + str.tostring(close, "#.##") + '","sl":"' + str.tostring(safe_sl, "#.##") + '","tp":"' + str.tostring(tp, "#.##") + '","type":"ENTRY"}', alert.freq_once_per_bar)
+        strategy.entry("Long", strategy.long, qty=entry_qty, comment=code)
+
+        alert('{"code":"' + code + '","amountPerTrade":"' + str.tostring(entry_qty, "#.########") + '","amountPerTradeType":"quote"}', alert.freq_once_per_bar)
 
         if showTradeLabels
             rr = (tp - close) / sl_dist
@@ -523,11 +524,12 @@ if shortCond and not in_position
         trail_low := low
 
         qty_pct = use_dynamic_sizing ? math.min(position_pct, 100 / (sl_dist / close * 100)) : position_pct
-
-        strategy.entry("Short", strategy.short, qty=strategy.equity * qty_pct / 100 / close, comment="S")
+        entry_qty = strategy.equity * qty_pct / 100 / close
 
         code = get_bot_code("ENTER-SHORT")
-        alert('{"code":"' + code + '","price":"' + str.tostring(close, "#.##") + '","sl":"' + str.tostring(safe_sl, "#.##") + '","tp":"' + str.tostring(tp, "#.##") + '","type":"ENTRY"}', alert.freq_once_per_bar)
+        strategy.entry("Short", strategy.short, qty=entry_qty, comment=code)
+
+        alert('{"code":"' + code + '","amountPerTrade":"' + str.tostring(entry_qty, "#.########") + '","amountPerTradeType":"quote"}', alert.freq_once_per_bar)
 
         if showTradeLabels
             rr = (close - tp) / sl_dist
@@ -572,10 +574,10 @@ if use_dca and in_position and dca_count < dca_max_entries
 
                 dca_count += 1
 
-                strategy.entry("Long", strategy.long, qty=dca_qty, comment="DCA" + str.tostring(dca_count))
-
                 code = get_bot_code("ENTER-LONG")
-                alert('{"code":"' + code + '","price":"' + str.tostring(close, "#.##") + '","type":"DCA","num":"' + str.tostring(dca_count) + '"}', alert.freq_once_per_bar)
+                strategy.entry("Long", strategy.long, qty=dca_qty, comment=code)
+
+                alert('{"code":"' + code + '","amountPerTrade":"' + str.tostring(dca_qty, "#.########") + '","amountPerTradeType":"quote"}', alert.freq_once_per_bar)
 
                 if showTradeLabels
                     label.new(bar_index, low - atrValue * 1.5, "🔄 DCA#" + str.tostring(dca_count) + "\n📊 Avg: " + str.tostring(new_avg, format.mintick),
@@ -601,10 +603,10 @@ if use_dca and in_position and dca_count < dca_max_entries
 
                 dca_count += 1
 
-                strategy.entry("Short", strategy.short, qty=dca_qty, comment="DCA" + str.tostring(dca_count))
-
                 code = get_bot_code("ENTER-SHORT")
-                alert('{"code":"' + code + '","price":"' + str.tostring(close, "#.##") + '","type":"DCA","num":"' + str.tostring(dca_count) + '"}', alert.freq_once_per_bar)
+                strategy.entry("Short", strategy.short, qty=dca_qty, comment=code)
+
+                alert('{"code":"' + code + '","amountPerTrade":"' + str.tostring(dca_qty, "#.########") + '","amountPerTradeType":"quote"}', alert.freq_once_per_bar)
 
                 if showTradeLabels
                     label.new(bar_index, high + atrValue * 1.5, "🔄 DCA#" + str.tostring(dca_count) + "\n📊 Avg: " + str.tostring(new_avg, format.mintick),
@@ -616,10 +618,10 @@ if use_dca and in_position and dca_count < dca_max_entries
 
 if in_position and not na(avg_entry)
     if is_near_liquidation(avg_entry, close, is_long)
-        strategy.close_all(comment="⚠️NÖDSTOPP")
-
         code = get_bot_code(is_long ? "EXIT-LONG" : "EXIT-SHORT")
-        alert('{"code":"' + code + '","type":"EMERGENCY"}', alert.freq_once_per_bar)
+        strategy.close_all(comment=code)
+
+        alert('{"code":"' + code + '","amountPerTrade":"' + str.tostring(math.abs(strategy.position_size), "#.########") + '","amountPerTradeType":"quote"}', alert.freq_once_per_bar)
 
         if showTradeLabels
             label.new(bar_index, is_long ? (low - atrValue * 2.5) : (high + atrValue * 2.5), "⚠️ NÖDSTOPP!\n🚨 För nära likvidation",
@@ -635,11 +637,14 @@ if usePartialTP and partial1_enabled and in_position and not partial1_taken and 
 
     if partial1_hit
         partial_qty = strategy.position_size * (partial1_pct / 100)
+        code = get_bot_code(is_long ? "EXIT-LONG" : "EXIT-SHORT")
 
         if is_long
-            strategy.close("Long", qty=math.abs(partial_qty), comment="TP1")
+            strategy.close("Long", qty=math.abs(partial_qty), comment=code)
         else
-            strategy.close("Short", qty=math.abs(partial_qty), comment="TP1")
+            strategy.close("Short", qty=math.abs(partial_qty), comment=code)
+
+        alert('{"code":"' + code + '","amountPerTrade":"' + str.tostring(math.abs(partial_qty), "#.########") + '","amountPerTradeType":"quote"}', alert.freq_once_per_bar)
 
         partial1_taken := true
 
@@ -654,11 +659,14 @@ if usePartialTP and partial2_enabled and in_position and not partial2_taken and 
 
     if partial2_hit
         partial_qty = strategy.position_size * (partial2_pct / 100)
+        code = get_bot_code(is_long ? "EXIT-LONG" : "EXIT-SHORT")
 
         if is_long
-            strategy.close("Long", qty=math.abs(partial_qty), comment="TP2")
+            strategy.close("Long", qty=math.abs(partial_qty), comment=code)
         else
-            strategy.close("Short", qty=math.abs(partial_qty), comment="TP2")
+            strategy.close("Short", qty=math.abs(partial_qty), comment=code)
+
+        alert('{"code":"' + code + '","amountPerTrade":"' + str.tostring(math.abs(partial_qty), "#.########") + '","amountPerTradeType":"quote"}', alert.freq_once_per_bar)
 
         partial2_taken := true
 
@@ -673,11 +681,14 @@ if usePartialTP and partial3_enabled and in_position and not partial3_taken and 
 
     if partial3_hit
         partial_qty = strategy.position_size * (partial3_pct / 100)
+        code = get_bot_code(is_long ? "EXIT-LONG" : "EXIT-SHORT")
 
         if is_long
-            strategy.close("Long", qty=math.abs(partial_qty), comment="TP3")
+            strategy.close("Long", qty=math.abs(partial_qty), comment=code)
         else
-            strategy.close("Short", qty=math.abs(partial_qty), comment="TP3")
+            strategy.close("Short", qty=math.abs(partial_qty), comment=code)
+
+        alert('{"code":"' + code + '","amountPerTrade":"' + str.tostring(math.abs(partial_qty), "#.########") + '","amountPerTradeType":"quote"}', alert.freq_once_per_bar)
 
         partial3_taken := true
 
@@ -692,11 +703,14 @@ if usePartialTP and partial4_enabled and in_position and not partial4_taken and 
 
     if partial4_hit
         partial_qty = strategy.position_size * (partial4_pct / 100)
+        code = get_bot_code(is_long ? "EXIT-LONG" : "EXIT-SHORT")
 
         if is_long
-            strategy.close("Long", qty=math.abs(partial_qty), comment="TP4")
+            strategy.close("Long", qty=math.abs(partial_qty), comment=code)
         else
-            strategy.close("Short", qty=math.abs(partial_qty), comment="TP4")
+            strategy.close("Short", qty=math.abs(partial_qty), comment=code)
+
+        alert('{"code":"' + code + '","amountPerTrade":"' + str.tostring(math.abs(partial_qty), "#.########") + '","amountPerTradeType":"quote"}', alert.freq_once_per_bar)
 
         partial4_taken := true
 
@@ -761,30 +775,32 @@ if in_position and not na(stop_loss) and not na(take_profit)
     // SL only active when ALL DCA entries are complete (or DCA disabled)
     dca_complete = not use_dca or dca_count >= dca_max_entries
 
+    exit_code = get_bot_code(is_long ? "EXIT-LONG" : "EXIT-SHORT")
+
     if is_long
         if dca_complete
             // All DCAs done - use both SL and TP
-            strategy.exit("Exit Long", "Long", stop=stop_loss, limit=take_profit, comment_profit="TP✓", comment_loss="SL✗")
+            strategy.exit("Exit Long", "Long", stop=stop_loss, limit=take_profit, comment_profit=exit_code, comment_loss=exit_code)
         else
             // DCAs still pending - only use TP, NO SL
-            strategy.exit("Exit Long", "Long", limit=take_profit, comment_profit="TP✓")
+            strategy.exit("Exit Long", "Long", limit=take_profit, comment_profit=exit_code)
 
     if is_short
         if dca_complete
             // All DCAs done - use both SL and TP
-            strategy.exit("Exit Short", "Short", stop=stop_loss, limit=take_profit, comment_profit="TP✓", comment_loss="SL✗")
+            strategy.exit("Exit Short", "Short", stop=stop_loss, limit=take_profit, comment_profit=exit_code, comment_loss=exit_code)
         else
             // DCAs still pending - only use TP, NO SL
-            strategy.exit("Exit Short", "Short", limit=take_profit, comment_profit="TP✓")
+            strategy.exit("Exit Short", "Short", limit=take_profit, comment_profit=exit_code)
 
 // Exit alerts
 if strategy.position_size == 0 and strategy.position_size[1] > 0
     code = get_bot_code("EXIT-LONG")
-    alert('{"code":"' + code + '","price":"' + str.tostring(close, "#.##") + '","type":"EXIT"}', alert.freq_once_per_bar)
+    alert('{"code":"' + code + '","amountPerTrade":"' + str.tostring(math.abs(strategy.position_size[1]), "#.########") + '","amountPerTradeType":"quote"}', alert.freq_once_per_bar)
 
 if strategy.position_size == 0 and strategy.position_size[1] < 0
     code = get_bot_code("EXIT-SHORT")
-    alert('{"code":"' + code + '","price":"' + str.tostring(close, "#.##") + '","type":"EXIT"}', alert.freq_once_per_bar)
+    alert('{"code":"' + code + '","amountPerTrade":"' + str.tostring(math.abs(strategy.position_size[1]), "#.########") + '","amountPerTradeType":"quote"}', alert.freq_once_per_bar)
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 🎨 VISUALS
@@ -848,7 +864,7 @@ if showInfoPanel
     var table panel = table.new(position.top_right, 2, 30, bgcolor=color.new(#000000, 80), border_width=2, border_color=color.gray)
 
     // Header
-    table.cell(panel, 0, 0, "⚡ SCALPER v8.5 [15M]", text_color=color.white, text_size=size.normal, bgcolor=color.new(#2962FF, 50))
+    table.cell(panel, 0, 0, "⚡ SCALPER v9.0 [15M]", text_color=color.white, text_size=size.normal, bgcolor=color.new(#2962FF, 50))
     table.merge_cells(panel, 0, 0, 1, 0)
 
     row = 1
