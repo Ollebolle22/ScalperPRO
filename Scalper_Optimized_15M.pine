@@ -473,6 +473,9 @@ if longCond and not in_position
         qty_pct = use_dynamic_sizing ? math.min(position_pct, 100 / (sl_dist / close * 100)) : position_pct
         entry_qty = strategy.equity * qty_pct / 100 / close
 
+        base_qty := entry_qty
+        total_qty := entry_qty
+
         code = get_bot_code("ENTER-LONG")
         strategy.entry("Long", strategy.long, qty=entry_qty, comment=code)
 
@@ -526,6 +529,9 @@ if shortCond and not in_position
         qty_pct = use_dynamic_sizing ? math.min(position_pct, 100 / (sl_dist / close * 100)) : position_pct
         entry_qty = strategy.equity * qty_pct / 100 / close
 
+        base_qty := entry_qty
+        total_qty := entry_qty
+
         code = get_bot_code("ENTER-SHORT")
         strategy.entry("Short", strategy.short, qty=entry_qty, comment=code)
 
@@ -572,6 +578,7 @@ if use_dca and in_position and dca_count < dca_max_entries
                 partial_tp3_price := partial3_enabled ? new_avg + (new_sl_dist * partial3_trigger) : na
                 partial_tp4_price := partial4_enabled ? new_avg + (new_sl_dist * partial4_trigger) : na
 
+                total_qty := new_total
                 dca_count += 1
 
                 code = get_bot_code("ENTER-LONG")
@@ -601,6 +608,7 @@ if use_dca and in_position and dca_count < dca_max_entries
                 partial_tp3_price := partial3_enabled ? new_avg - (new_sl_dist * partial3_trigger) : na
                 partial_tp4_price := partial4_enabled ? new_avg - (new_sl_dist * partial4_trigger) : na
 
+                total_qty := new_total
                 dca_count += 1
 
                 code = get_bot_code("ENTER-SHORT")
