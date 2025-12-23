@@ -2,28 +2,31 @@
 // © Optimized Momentum Scalper - 15M Timeframe Specialist
 
 //@version=6
-strategy("⚡ Momentum Scalper PRO v8.2 [15M Optimized]",
+strategy("⚡ Momentum Scalper PRO v8.3 [15M Optimized]",
      overlay=true,
-     initial_capital=10000,
-     default_qty_type=strategy.percent_of_equity,
-     default_qty_value=100,
-     commission_type=strategy.commission.percent,
-     commission_value=0.06,
-     slippage=2,
-     pyramiding=3,
      calc_on_every_tick=false,
      process_orders_on_close=true,
      max_bars_back=500)
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ⚙️ STRATEGY PROPERTIES (flyttat från hardcoded settings)
+// ══════════════════════════════════════════════════════════════════════════════
+
+grpStrategy = "⚙️ Strategy Properties"
+initial_capital = input.float(10000, "💵 Initial Capital", step=100, group=grpStrategy, tooltip="Startkapital för backtest")
+commission_pct = input.float(0.06, "💸 Commission %", step=0.01, group=grpStrategy, tooltip="Provision per trade (0.06 = 0.06%)")
+slippage_ticks = input.int(2, "📉 Slippage (ticks)", step=1, group=grpStrategy, tooltip="Slippage i ticks")
+max_pyramiding = input.int(3, "📊 Max Pyramiding", step=1, group=grpStrategy, tooltip="Max antal samtidiga entries (DCA räknas hit)")
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 💰 KAPITAL & LEVERAGE
 // ══════════════════════════════════════════════════════════════════════════════
 
 grpCapital = "💰 Kapital & Leverage"
-leverage = input.float(5.0, "📊 Leverage", minval=1.0, maxval=50.0, step=0.5, group=grpCapital, tooltip="Hävstång på börsen")
-liq_buffer_pct = input.float(30.0, "🛡️ Likvidations-buffer %", minval=15.0, maxval=60.0, step=5.0, group=grpCapital, tooltip="Säkerhetsmarginal till likvidationspris - ÖKA för säkerhet")
-position_pct = input.float(95.0, "📍 Position Size %", minval=10.0, maxval=100.0, step=5.0, group=grpCapital, tooltip="Andel av equity per trade")
-min_liq_distance = input.float(8.0, "🚨 Min avstånd till liq %", minval=5.0, maxval=20.0, step=1.0, group=grpCapital, tooltip="Minsta tillåtna avstånd till likvidation")
+leverage = input.float(5.0, "📊 Leverage", step=0.5, group=grpCapital, tooltip="Hävstång på börsen")
+liq_buffer_pct = input.float(30.0, "🛡️ Likvidations-buffer %", step=5.0, group=grpCapital, tooltip="Säkerhetsmarginal till likvidationspris - ÖKA för säkerhet")
+position_pct = input.float(95.0, "📍 Position Size %", step=5.0, group=grpCapital, tooltip="Andel av equity per trade")
+min_liq_distance = input.float(8.0, "🚨 Min avstånd till liq %", step=1.0, group=grpCapital, tooltip="Minsta tillåtna avstånd till likvidation")
 use_dynamic_sizing = input.bool(true, "✓ Dynamic Position Sizing", group=grpCapital, tooltip="Justera position size baserat på ATR/volatilitet")
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -32,11 +35,11 @@ use_dynamic_sizing = input.bool(true, "✓ Dynamic Position Sizing", group=grpCa
 
 grpDCA = "🔄 DCA (Dollar Cost Average)"
 use_dca = input.bool(true, "✓ Aktivera DCA", group=grpDCA, tooltip="Lägg till position vid drawdown - NU MED BÄTTRE KONTROLL")
-dca_max_entries = input.int(2, "Max DCA entries", minval=1, maxval=3, group=grpDCA, tooltip="Reducerat från 5 till 2 för bättre risk management")
+dca_max_entries = input.int(2, "Max DCA entries", group=grpDCA, tooltip="Reducerat från 5 till 2 för bättre risk management")
 dca_mode = input.string("ATR Smart", "DCA Trigger-läge", options=["ATR Smart", "Fixed %"], group=grpDCA, tooltip="ATR Smart rekommenderas för 15min")
-dca_atr_mult = input.float(2.5, "ATR Multiplikator", minval=1.0, maxval=5.0, step=0.25, group=grpDCA, tooltip="Ökat från 2.0 till 2.5 för 15min")
-dca_fixed_pct = input.float(4.0, "Fixed % avstånd", minval=1.0, maxval=10.0, step=0.5, group=grpDCA, tooltip="Ökat från 3% till 4% för 15min volatilitet")
-dca_size_mult = input.float(1.3, "Storlek multiplikator", minval=1.0, maxval=2.0, step=0.1, group=grpDCA, tooltip="Reducerat från 1.5 för säkrare DCA")
+dca_atr_mult = input.float(2.5, "ATR Multiplikator", step=0.25, group=grpDCA, tooltip="Ökat från 2.0 till 2.5 för 15min")
+dca_fixed_pct = input.float(4.0, "Fixed % avstånd", step=0.5, group=grpDCA, tooltip="Ökat från 3% till 4% för 15min volatilitet")
+dca_size_mult = input.float(1.3, "Storlek multiplikator", step=0.1, group=grpDCA, tooltip="Reducerat från 1.5 för säkrare DCA")
 require_trend_for_dca = input.bool(true, "✓ Kräv fortsatt trend för DCA", group=grpDCA, tooltip="NYT: Tillåt bara DCA om trenden håller i sig")
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -44,12 +47,12 @@ require_trend_for_dca = input.bool(true, "✓ Kräv fortsatt trend för DCA", gr
 // ══════════════════════════════════════════════════════════════════════════════
 
 grpTrend = "📈 Trend Settings [15M Optimized]"
-emaFastLen = input.int(21, "Fast EMA Length", minval=8, maxval=50, group=grpTrend, tooltip="Ökat från 12 till 21 för 15min - minskar whipsaws")
-emaSlowLen = input.int(50, "Slow EMA Length", minval=20, maxval=100, group=grpTrend, tooltip="Ökat från 26 till 50 för tydligare crossovers")
-emaTrendLen = input.int(100, "Trend EMA Length", minval=50, maxval=200, group=grpTrend, tooltip="Ökat från 50 till 100 för stark trend filter")
+emaFastLen = input.int(21, "Fast EMA Length", group=grpTrend, tooltip="Ökat från 12 till 21 för 15min - minskar whipsaws")
+emaSlowLen = input.int(50, "Slow EMA Length", group=grpTrend, tooltip="Ökat från 26 till 50 för tydligare crossovers")
+emaTrendLen = input.int(100, "Trend EMA Length", group=grpTrend, tooltip="Ökat från 50 till 100 för stark trend filter")
 emaSource = input.source(close, "EMA Source", group=grpTrend)
 requireTrendAlignment = input.bool(true, "✓ Kräv trend-alignment", group=grpTrend, tooltip="STARKT REKOMMENDERAT - filtrera mot trenden")
-emaSpacing = input.float(0.15, "Min EMA-spacing %", minval=0.05, maxval=2.0, step=0.05, group=grpTrend, tooltip="Kräv att EMAs är separerade - 0.15% = mildare, 0.3% = striktare")
+emaSpacing = input.float(0.15, "Min EMA-spacing %", step=0.05, group=grpTrend, tooltip="Kräv att EMAs är separerade - 0.15% = mildare, 0.3% = striktare")
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 💪 ADX TREND STRENGTH (NYTT!)
@@ -57,9 +60,9 @@ emaSpacing = input.float(0.15, "Min EMA-spacing %", minval=0.05, maxval=2.0, ste
 
 grpADX = "💪 ADX Trend Strength [NYT!]"
 useADX = input.bool(true, "✓ Använd ADX Filter", group=grpADX, tooltip="KRITISKT - filtrera svaga trender")
-adxLen = input.int(14, "ADX Length", minval=7, maxval=30, group=grpADX)
-adxThreshold = input.int(22, "ADX Minimum", minval=15, maxval=40, group=grpADX, tooltip="22+ = måttlig trend, 25+ = stark trend")
-adxStrong = input.int(32, "ADX Stark Trend", minval=25, maxval=50, group=grpADX, tooltip="32+ = mycket stark trend")
+adxLen = input.int(14, "ADX Length", group=grpADX)
+adxThreshold = input.int(22, "ADX Minimum", group=grpADX, tooltip="22+ = måttlig trend, 25+ = stark trend")
+adxStrong = input.int(32, "ADX Stark Trend", group=grpADX, tooltip="32+ = mycket stark trend")
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 📉 RSI SETTINGS (STRIKTARE)
@@ -67,12 +70,12 @@ adxStrong = input.int(32, "ADX Stark Trend", minval=25, maxval=50, group=grpADX,
 
 grpRSI = "📉 RSI Settings [Tightened]"
 useRSI = input.bool(true, "✓ Använd RSI Filter", group=grpRSI, tooltip="HÅLL PÅ - viktigt filter")
-rsiLen = input.int(14, "RSI Length", minval=7, maxval=21, group=grpRSI)
+rsiLen = input.int(14, "RSI Length", group=grpRSI)
 rsiSource = input.source(close, "RSI Source", group=grpRSI)
-rsiLongMin = input.int(45, "RSI Long Min", minval=30, maxval=55, group=grpRSI, tooltip="Ökat från 40 - kräv starkare momentum")
-rsiLongMax = input.int(65, "RSI Long Max", minval=55, maxval=80, group=grpRSI, tooltip="Minskat från 70 - undvik overbought")
-rsiShortMin = input.int(35, "RSI Short Min", minval=20, maxval=45, group=grpRSI, tooltip="Ökat från 30")
-rsiShortMax = input.int(55, "RSI Short Max", minval=45, maxval=70, group=grpRSI, tooltip="Minskat från 60 - undvik oversold")
+rsiLongMin = input.int(45, "RSI Long Min", group=grpRSI, tooltip="Ökat från 40 - kräv starkare momentum")
+rsiLongMax = input.int(65, "RSI Long Max", group=grpRSI, tooltip="Minskat från 70 - undvik overbought")
+rsiShortMin = input.int(35, "RSI Short Min", group=grpRSI, tooltip="Ökat från 30")
+rsiShortMax = input.int(55, "RSI Short Max", group=grpRSI, tooltip="Minskat från 60 - undvik oversold")
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 📊 MACD SETTINGS (JUSTERAD)
@@ -80,9 +83,9 @@ rsiShortMax = input.int(55, "RSI Short Max", minval=45, maxval=70, group=grpRSI,
 
 grpMACD = "📊 MACD Settings"
 useMACD = input.bool(true, "✓ Använd MACD Filter", group=grpMACD)
-macdFast = input.int(12, "MACD Fast", minval=8, maxval=20, group=grpMACD)
-macdSlow = input.int(26, "MACD Slow", minval=20, maxval=50, group=grpMACD)
-macdSignal = input.int(9, "MACD Signal", minval=5, maxval=15, group=grpMACD)
+macdFast = input.int(12, "MACD Fast", group=grpMACD)
+macdSlow = input.int(26, "MACD Slow", group=grpMACD)
+macdSignal = input.int(9, "MACD Signal", group=grpMACD)
 macdSource = input.source(close, "MACD Source", group=grpMACD)
 requireMACDCross = input.bool(false, "✓ Kräv MACD-korsning", group=grpMACD, tooltip="Om false: kräver bara bullish MACD-riktning")
 macdHistIncreasing = input.bool(false, "✓ Kräv ökande histogram", group=grpMACD, tooltip="Extra filter - stängs av för fler trades")
@@ -92,23 +95,73 @@ macdHistIncreasing = input.bool(false, "✓ Kräv ökande histogram", group=grpM
 // ══════════════════════════════════════════════════════════════════════════════
 
 grpRisk = "🎯 Risk Management [Enhanced]"
-atrLen = input.int(20, "ATR Length", minval=10, maxval=30, group=grpRisk, tooltip="Ökat från 14 till 20 för 15min smoothing")
-atrMultSL = input.float(3.0, "ATR Multiplier Stop Loss", minval=1.5, maxval=5.0, step=0.1, group=grpRisk, tooltip="3.0 ATR = bredare SL, färre stop-outs")
-atrMultTP = input.float(7.0, "ATR Multiplier Take Profit", minval=3.0, maxval=12.0, step=0.5, group=grpRisk, tooltip="7.0 ATR = mycket bättre R:R (2.3:1)")
+atrLen = input.int(20, "ATR Length", group=grpRisk, tooltip="Ökat från 14 till 20 för 15min smoothing")
+atrMultSL = input.float(3.0, "ATR Multiplier Stop Loss", step=0.1, group=grpRisk, tooltip="3.0 ATR = bredare SL, färre stop-outs")
+atrMultTP = input.float(7.0, "ATR Multiplier Take Profit", step=0.5, group=grpRisk, tooltip="7.0 ATR = mycket bättre R:R (2.3:1)")
 
 // Partial Profit System (NYTT!)
 usePartialTP = input.bool(true, "✓ Partial Take Profit", group=grpRisk, tooltip="NYT: Ta 40% vinst vid 1.5R, låt 60% köra längre")
-partialTPPercent = input.float(40.0, "Partial TP %", minval=25.0, maxval=75.0, step=5.0, group=grpRisk, tooltip="Sänkt till 40% - låter mer köra")
-partialTPTrigger = input.float(1.5, "Partial TP vid R-multipel", minval=1.0, maxval=3.0, step=0.25, group=grpRisk, tooltip="Ta partial profit vid 1.5R")
+partialTPPercent = input.float(40.0, "Partial TP %", step=5.0, group=grpRisk, tooltip="Sänkt till 40% - låter mer köra")
+partialTPTrigger = input.float(1.5, "Partial TP vid R-multipel", step=0.25, group=grpRisk, tooltip="Ta partial profit vid 1.5R")
 
 // Trailing Stop (FIXAD!)
 useTrailingStop = input.bool(true, "✓ Use Trailing Stop", group=grpRisk, tooltip="FIXAD implementation")
-trailActivation = input.float(2.0, "Trail Activation (R)", minval=1.0, maxval=5.0, step=0.25, group=grpRisk, tooltip="NYT: Aktivera trailing vid 2R vinst")
-trailOffset = input.float(1.2, "Trailing Stop ATR Mult", minval=0.5, maxval=3.0, step=0.1, group=grpRisk, tooltip="Minskat från 1.5 - tightare trailing")
+trailActivation = input.float(2.0, "Trail Activation (R)", step=0.25, group=grpRisk, tooltip="NYT: Aktivera trailing vid 2R vinst")
+trailOffset = input.float(1.2, "Trailing Stop ATR Mult", step=0.1, group=grpRisk, tooltip="Minskat från 1.5 - tightare trailing")
 
 // Breakeven
 useBreakeven = input.bool(true, "✓ Flytta SL till breakeven", group=grpRisk, tooltip="Rekommenderat för 15min")
-breakevenTrigger = input.float(1.2, "Breakeven vid R-multipel", minval=0.8, maxval=2.0, step=0.1, group=grpRisk, tooltip="Ökat från 1.0 till 1.2")
+breakevenTrigger = input.float(1.2, "Breakeven vid R-multipel", step=0.1, group=grpRisk, tooltip="Ökat från 1.0 till 1.2")
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════════
+// 📖 SÅ FUNGERAR STOP LOSS I DENNA STRATEGI - LÄS DETTA!
+// ═══════════════════════════════════════════════════════════════════════════════════════════════════
+//
+// VIKTIG INFORMATION OM STOP LOSS BETEENDE:
+//
+// 1️⃣ INITIAL SL PLACERING (vid entry):
+//    - SL beräknas från entry-pris minus ATR × atrMultSL (default 3.0 ATR)
+//    - OM DCA är aktiverat: SL justeras för att ligga BORTOM sista DCA-nivån
+//      Exempel: Med 2 DCA @ 2.5 ATR spacing → SL = 5.5 ATR (2×2.5 + 0.5 buffer)
+//    - SL filtreras genom liquidation-skydd (säkerställer minsta avstånd till liq)
+//
+// 2️⃣ SL AKTIVERING - KRITISKT ATT FÖRSTÅ:
+//    ❌ SL är INAKTIV medan DCA entries pågår (dca_count < dca_max_entries)
+//    ✅ SL aktiveras ENDAST när ALLA DCA entries är klara (dca_count >= dca_max_entries)
+//    ⚠️  UNDANTAG: Liquidation emergency stop triggar ALLTID (oavsett DCA status)
+//
+//    Detta betyder:
+//    - Under DCA-fas: Kan bara exit via TP eller Partial TP
+//    - Efter DCA-fas: Normal risk management (SL, TP, Trailing, Breakeven)
+//
+// 3️⃣ SL UPPDATERINGAR (efter varje DCA):
+//    - När DCA körs → Ny avg_entry beräknas
+//    - SL omberäknas från nya avg_entry (inte från original entry)
+//    - TP omberäknas också från nya avg_entry
+//    - Detta ger dynamisk risk management baserat på faktiskt genomsnittspris
+//
+// 4️⃣ BREAKEVEN MOVE (när vinst >= breakevenTrigger):
+//    - SL flyttas till avg_entry + lite marginal (0.1 ATR)
+//    - Skyddar mot att gå back i förlust efter vinst
+//    - Triggar vid 1.2R profit (konfigurerbart)
+//
+// 5️⃣ TRAILING STOP (när vinst >= trailActivation):
+//    - Aktiveras vid 2.0R profit
+//    - SL följer priset på avstånd = trailOffset × ATR (default 1.2 ATR)
+//    - Uppdateras kontinuerligt när nya highs/lows bildas
+//    - Låser in vinst samtidigt som positionen får köra
+//
+// 6️⃣ LIQUIDATION EMERGENCY:
+//    - Övervakar konstant avstånd till liquidation price
+//    - Om avstånd < min_liq_distance (8%) → TVÅNGSCLOSE
+//    - Detta går FÖRE alla andra SL-regler
+//    - Skyddar mot total förlust vid extrema rörelser
+//
+// SAMMANFATTNING:
+// Entry → DCA fas (endast TP möjlig) → Alla DCAs klara → SL aktiveras →
+// → Breakeven vid 1.2R → Trailing vid 2.0R → Exit via SL/TP
+//
+// ═══════════════════════════════════════════════════════════════════════════════════════════════════
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 📦 VOLUME FILTER (STRIKTARE)
@@ -116,8 +169,8 @@ breakevenTrigger = input.float(1.2, "Breakeven vid R-multipel", minval=0.8, maxv
 
 grpVol = "📦 Volume Filter [Tightened]"
 useVolFilter = input.bool(true, "✓ Use Volume Filter", group=grpVol, tooltip="KRITISKT - filtrera låg volym")
-volMultiplier = input.float(1.4, "Volume Multiplier", minval=1.0, maxval=3.0, step=0.1, group=grpVol, tooltip="1.4x = volym måste vara 40% över genomsnitt")
-volLen = input.int(24, "Volume MA Length", minval=10, maxval=50, group=grpVol, tooltip="24 bars = 6 timmar på 15min")
+volMultiplier = input.float(1.4, "Volume Multiplier", step=0.1, group=grpVol, tooltip="1.4x = volym måste vara 40% över genomsnitt")
+volLen = input.int(24, "Volume MA Length", group=grpVol, tooltip="24 bars = 6 timmar på 15min")
 volIncreasing = input.bool(false, "✓ Kräv ökande volym", group=grpVol, tooltip="Extra strikt filter - kan aktiveras för ännu färre trades")
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -667,7 +720,7 @@ if showInfoPanel
     var table panel = table.new(position.top_right, 2, 28, bgcolor=color.new(#000000, 80), border_width=2, border_color=color.gray)
 
     // Header
-    table.cell(panel, 0, 0, "⚡ SCALPER v8.2 [15M]", text_color=color.white, text_size=size.normal, bgcolor=color.new(#2962FF, 50))
+    table.cell(panel, 0, 0, "⚡ SCALPER v8.3 [15M]", text_color=color.white, text_size=size.normal, bgcolor=color.new(#2962FF, 50))
     table.merge_cells(panel, 0, 0, 1, 0)
 
     row = 1
