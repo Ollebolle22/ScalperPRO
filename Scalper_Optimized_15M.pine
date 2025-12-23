@@ -2,28 +2,31 @@
 // © Optimized Momentum Scalper - 15M Timeframe Specialist
 
 //@version=6
-strategy("⚡ Momentum Scalper PRO v8.1 [15M Optimized]",
+strategy("⚡ Momentum Scalper PRO v8.5 [15M Optimized]",
      overlay=true,
-     initial_capital=10000,
-     default_qty_type=strategy.percent_of_equity,
-     default_qty_value=100,
-     commission_type=strategy.commission.percent,
-     commission_value=0.06,
-     slippage=2,
-     pyramiding=3,
      calc_on_every_tick=false,
      process_orders_on_close=true,
      max_bars_back=500)
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ⚙️ STRATEGY PROPERTIES (flyttat från hardcoded settings)
+// ══════════════════════════════════════════════════════════════════════════════
+
+grpStrategy = "⚙️ Strategy Properties"
+initial_capital = input.float(10000, "💵 Initial Capital", step=100, group=grpStrategy, tooltip="Startkapital för backtest")
+commission_pct = input.float(0.06, "💸 Commission %", step=0.01, group=grpStrategy, tooltip="Provision per trade (0.06 = 0.06%)")
+slippage_ticks = input.int(2, "📉 Slippage (ticks)", step=1, group=grpStrategy, tooltip="Slippage i ticks")
+max_pyramiding = input.int(3, "📊 Max Pyramiding", step=1, group=grpStrategy, tooltip="Max antal samtidiga entries (DCA räknas hit)")
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 💰 KAPITAL & LEVERAGE
 // ══════════════════════════════════════════════════════════════════════════════
 
 grpCapital = "💰 Kapital & Leverage"
-leverage = input.float(5.0, "📊 Leverage", minval=1.0, maxval=50.0, step=0.5, group=grpCapital, tooltip="Hävstång på börsen")
-liq_buffer_pct = input.float(30.0, "🛡️ Likvidations-buffer %", minval=15.0, maxval=60.0, step=5.0, group=grpCapital, tooltip="Säkerhetsmarginal till likvidationspris - ÖKA för säkerhet")
-position_pct = input.float(95.0, "📍 Position Size %", minval=10.0, maxval=100.0, step=5.0, group=grpCapital, tooltip="Andel av equity per trade")
-min_liq_distance = input.float(8.0, "🚨 Min avstånd till liq %", minval=5.0, maxval=20.0, step=1.0, group=grpCapital, tooltip="Minsta tillåtna avstånd till likvidation")
+leverage = input.float(5.0, "📊 Leverage", step=0.5, group=grpCapital, tooltip="Hävstång på börsen")
+liq_buffer_pct = input.float(30.0, "🛡️ Likvidations-buffer %", step=5.0, group=grpCapital, tooltip="Säkerhetsmarginal till likvidationspris - ÖKA för säkerhet")
+position_pct = input.float(95.0, "📍 Position Size %", step=5.0, group=grpCapital, tooltip="Andel av equity per trade")
+min_liq_distance = input.float(8.0, "🚨 Min avstånd till liq %", step=1.0, group=grpCapital, tooltip="Minsta tillåtna avstånd till likvidation")
 use_dynamic_sizing = input.bool(true, "✓ Dynamic Position Sizing", group=grpCapital, tooltip="Justera position size baserat på ATR/volatilitet")
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -32,11 +35,11 @@ use_dynamic_sizing = input.bool(true, "✓ Dynamic Position Sizing", group=grpCa
 
 grpDCA = "🔄 DCA (Dollar Cost Average)"
 use_dca = input.bool(true, "✓ Aktivera DCA", group=grpDCA, tooltip="Lägg till position vid drawdown - NU MED BÄTTRE KONTROLL")
-dca_max_entries = input.int(2, "Max DCA entries", minval=1, maxval=3, group=grpDCA, tooltip="Reducerat från 5 till 2 för bättre risk management")
+dca_max_entries = input.int(2, "Max DCA entries", group=grpDCA, tooltip="Reducerat från 5 till 2 för bättre risk management")
 dca_mode = input.string("ATR Smart", "DCA Trigger-läge", options=["ATR Smart", "Fixed %"], group=grpDCA, tooltip="ATR Smart rekommenderas för 15min")
-dca_atr_mult = input.float(2.5, "ATR Multiplikator", minval=1.0, maxval=5.0, step=0.25, group=grpDCA, tooltip="Ökat från 2.0 till 2.5 för 15min")
-dca_fixed_pct = input.float(4.0, "Fixed % avstånd", minval=1.0, maxval=10.0, step=0.5, group=grpDCA, tooltip="Ökat från 3% till 4% för 15min volatilitet")
-dca_size_mult = input.float(1.3, "Storlek multiplikator", minval=1.0, maxval=2.0, step=0.1, group=grpDCA, tooltip="Reducerat från 1.5 för säkrare DCA")
+dca_atr_mult = input.float(2.5, "ATR Multiplikator", step=0.25, group=grpDCA, tooltip="Ökat från 2.0 till 2.5 för 15min")
+dca_fixed_pct = input.float(4.0, "Fixed % avstånd", step=0.5, group=grpDCA, tooltip="Ökat från 3% till 4% för 15min volatilitet")
+dca_size_mult = input.float(1.3, "Storlek multiplikator", step=0.1, group=grpDCA, tooltip="Reducerat från 1.5 för säkrare DCA")
 require_trend_for_dca = input.bool(true, "✓ Kräv fortsatt trend för DCA", group=grpDCA, tooltip="NYT: Tillåt bara DCA om trenden håller i sig")
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -44,12 +47,12 @@ require_trend_for_dca = input.bool(true, "✓ Kräv fortsatt trend för DCA", gr
 // ══════════════════════════════════════════════════════════════════════════════
 
 grpTrend = "📈 Trend Settings [15M Optimized]"
-emaFastLen = input.int(21, "Fast EMA Length", minval=8, maxval=50, group=grpTrend, tooltip="Ökat från 12 till 21 för 15min - minskar whipsaws")
-emaSlowLen = input.int(50, "Slow EMA Length", minval=20, maxval=100, group=grpTrend, tooltip="Ökat från 26 till 50 för tydligare crossovers")
-emaTrendLen = input.int(100, "Trend EMA Length", minval=50, maxval=200, group=grpTrend, tooltip="Ökat från 50 till 100 för stark trend filter")
+emaFastLen = input.int(21, "Fast EMA Length", group=grpTrend, tooltip="Ökat från 12 till 21 för 15min - minskar whipsaws")
+emaSlowLen = input.int(50, "Slow EMA Length", group=grpTrend, tooltip="Ökat från 26 till 50 för tydligare crossovers")
+emaTrendLen = input.int(100, "Trend EMA Length", group=grpTrend, tooltip="Ökat från 50 till 100 för stark trend filter")
 emaSource = input.source(close, "EMA Source", group=grpTrend)
 requireTrendAlignment = input.bool(true, "✓ Kräv trend-alignment", group=grpTrend, tooltip="STARKT REKOMMENDERAT - filtrera mot trenden")
-emaSpacing = input.float(0.15, "Min EMA-spacing %", minval=0.05, maxval=2.0, step=0.05, group=grpTrend, tooltip="Kräv att EMAs är separerade - 0.15% = mildare, 0.3% = striktare")
+emaSpacing = input.float(0.15, "Min EMA-spacing %", step=0.05, group=grpTrend, tooltip="Kräv att EMAs är separerade - 0.15% = mildare, 0.3% = striktare")
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 💪 ADX TREND STRENGTH (NYTT!)
@@ -57,9 +60,9 @@ emaSpacing = input.float(0.15, "Min EMA-spacing %", minval=0.05, maxval=2.0, ste
 
 grpADX = "💪 ADX Trend Strength [NYT!]"
 useADX = input.bool(true, "✓ Använd ADX Filter", group=grpADX, tooltip="KRITISKT - filtrera svaga trender")
-adxLen = input.int(14, "ADX Length", minval=7, maxval=30, group=grpADX)
-adxThreshold = input.int(22, "ADX Minimum", minval=15, maxval=40, group=grpADX, tooltip="22+ = måttlig trend, 25+ = stark trend")
-adxStrong = input.int(32, "ADX Stark Trend", minval=25, maxval=50, group=grpADX, tooltip="32+ = mycket stark trend")
+adxLen = input.int(14, "ADX Length", group=grpADX)
+adxThreshold = input.int(22, "ADX Minimum", group=grpADX, tooltip="22+ = måttlig trend, 25+ = stark trend")
+adxStrong = input.int(32, "ADX Stark Trend", group=grpADX, tooltip="32+ = mycket stark trend")
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 📉 RSI SETTINGS (STRIKTARE)
@@ -67,12 +70,12 @@ adxStrong = input.int(32, "ADX Stark Trend", minval=25, maxval=50, group=grpADX,
 
 grpRSI = "📉 RSI Settings [Tightened]"
 useRSI = input.bool(true, "✓ Använd RSI Filter", group=grpRSI, tooltip="HÅLL PÅ - viktigt filter")
-rsiLen = input.int(14, "RSI Length", minval=7, maxval=21, group=grpRSI)
+rsiLen = input.int(14, "RSI Length", group=grpRSI)
 rsiSource = input.source(close, "RSI Source", group=grpRSI)
-rsiLongMin = input.int(45, "RSI Long Min", minval=30, maxval=55, group=grpRSI, tooltip="Ökat från 40 - kräv starkare momentum")
-rsiLongMax = input.int(65, "RSI Long Max", minval=55, maxval=80, group=grpRSI, tooltip="Minskat från 70 - undvik overbought")
-rsiShortMin = input.int(35, "RSI Short Min", minval=20, maxval=45, group=grpRSI, tooltip="Ökat från 30")
-rsiShortMax = input.int(55, "RSI Short Max", minval=45, maxval=70, group=grpRSI, tooltip="Minskat från 60 - undvik oversold")
+rsiLongMin = input.int(45, "RSI Long Min", group=grpRSI, tooltip="Ökat från 40 - kräv starkare momentum")
+rsiLongMax = input.int(65, "RSI Long Max", group=grpRSI, tooltip="Minskat från 70 - undvik overbought")
+rsiShortMin = input.int(35, "RSI Short Min", group=grpRSI, tooltip="Ökat från 30")
+rsiShortMax = input.int(55, "RSI Short Max", group=grpRSI, tooltip="Minskat från 60 - undvik oversold")
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 📊 MACD SETTINGS (JUSTERAD)
@@ -80,9 +83,9 @@ rsiShortMax = input.int(55, "RSI Short Max", minval=45, maxval=70, group=grpRSI,
 
 grpMACD = "📊 MACD Settings"
 useMACD = input.bool(true, "✓ Använd MACD Filter", group=grpMACD)
-macdFast = input.int(12, "MACD Fast", minval=8, maxval=20, group=grpMACD)
-macdSlow = input.int(26, "MACD Slow", minval=20, maxval=50, group=grpMACD)
-macdSignal = input.int(9, "MACD Signal", minval=5, maxval=15, group=grpMACD)
+macdFast = input.int(12, "MACD Fast", group=grpMACD)
+macdSlow = input.int(26, "MACD Slow", group=grpMACD)
+macdSignal = input.int(9, "MACD Signal", group=grpMACD)
 macdSource = input.source(close, "MACD Source", group=grpMACD)
 requireMACDCross = input.bool(false, "✓ Kräv MACD-korsning", group=grpMACD, tooltip="Om false: kräver bara bullish MACD-riktning")
 macdHistIncreasing = input.bool(false, "✓ Kräv ökande histogram", group=grpMACD, tooltip="Extra filter - stängs av för fler trades")
@@ -92,23 +95,92 @@ macdHistIncreasing = input.bool(false, "✓ Kräv ökande histogram", group=grpM
 // ══════════════════════════════════════════════════════════════════════════════
 
 grpRisk = "🎯 Risk Management [Enhanced]"
-atrLen = input.int(20, "ATR Length", minval=10, maxval=30, group=grpRisk, tooltip="Ökat från 14 till 20 för 15min smoothing")
-atrMultSL = input.float(3.0, "ATR Multiplier Stop Loss", minval=1.5, maxval=5.0, step=0.1, group=grpRisk, tooltip="3.0 ATR = bredare SL, färre stop-outs")
-atrMultTP = input.float(7.0, "ATR Multiplier Take Profit", minval=3.0, maxval=12.0, step=0.5, group=grpRisk, tooltip="7.0 ATR = mycket bättre R:R (2.3:1)")
+atrLen = input.int(20, "ATR Length", group=grpRisk, tooltip="Ökat från 14 till 20 för 15min smoothing")
+atrMultSL = input.float(3.0, "ATR Multiplier Stop Loss", step=0.1, group=grpRisk, tooltip="3.0 ATR = bredare SL, färre stop-outs")
+atrMultTP = input.float(7.0, "ATR Multiplier Take Profit", step=0.5, group=grpRisk, tooltip="7.0 ATR = mycket bättre R:R (2.3:1)")
 
-// Partial Profit System (NYTT!)
-usePartialTP = input.bool(true, "✓ Partial Take Profit", group=grpRisk, tooltip="NYT: Ta 40% vinst vid 1.5R, låt 60% köra längre")
-partialTPPercent = input.float(40.0, "Partial TP %", minval=25.0, maxval=75.0, step=5.0, group=grpRisk, tooltip="Sänkt till 40% - låter mer köra")
-partialTPTrigger = input.float(1.5, "Partial TP vid R-multipel", minval=1.0, maxval=3.0, step=0.25, group=grpRisk, tooltip="Ta partial profit vid 1.5R")
+// Partial Profit System (MULTI-LEVEL!)
+usePartialTP = input.bool(true, "✓ Partial Take Profit System", group=grpRisk, tooltip="Multi-level partial TP - ta vinst stegvis")
+numPartialLevels = input.int(3, "Antal Partial TP Nivåer", step=1, group=grpRisk, tooltip="1-4 partial TP nivåer (0 = av)")
+
+// Partial TP Level 1
+partial1_enabled = numPartialLevels >= 1
+partial1_pct = input.float(25.0, "📊 TP1: % av position", step=5.0, group=grpRisk, tooltip="Procent att sälja vid första TP")
+partial1_trigger = input.float(1.5, "📊 TP1: vid R-multipel", step=0.25, group=grpRisk, tooltip="Trigga vid 1.5R vinst")
+
+// Partial TP Level 2
+partial2_enabled = numPartialLevels >= 2
+partial2_pct = input.float(25.0, "📊 TP2: % av position", step=5.0, group=grpRisk, tooltip="Procent att sälja vid andra TP")
+partial2_trigger = input.float(2.5, "📊 TP2: vid R-multipel", step=0.25, group=grpRisk, tooltip="Trigga vid 2.5R vinst")
+
+// Partial TP Level 3
+partial3_enabled = numPartialLevels >= 3
+partial3_pct = input.float(25.0, "📊 TP3: % av position", step=5.0, group=grpRisk, tooltip="Procent att sälja vid tredje TP")
+partial3_trigger = input.float(3.5, "📊 TP3: vid R-multipel", step=0.25, group=grpRisk, tooltip="Trigga vid 3.5R vinst")
+
+// Partial TP Level 4
+partial4_enabled = numPartialLevels >= 4
+partial4_pct = input.float(25.0, "📊 TP4: % av position", step=5.0, group=grpRisk, tooltip="Procent att sälja vid fjärde TP")
+partial4_trigger = input.float(5.0, "📊 TP4: vid R-multipel", step=0.25, group=grpRisk, tooltip="Trigga vid 5.0R vinst")
 
 // Trailing Stop (FIXAD!)
 useTrailingStop = input.bool(true, "✓ Use Trailing Stop", group=grpRisk, tooltip="FIXAD implementation")
-trailActivation = input.float(2.0, "Trail Activation (R)", minval=1.0, maxval=5.0, step=0.25, group=grpRisk, tooltip="NYT: Aktivera trailing vid 2R vinst")
-trailOffset = input.float(1.2, "Trailing Stop ATR Mult", minval=0.5, maxval=3.0, step=0.1, group=grpRisk, tooltip="Minskat från 1.5 - tightare trailing")
+trailActivation = input.float(2.0, "Trail Activation (R)", step=0.25, group=grpRisk, tooltip="NYT: Aktivera trailing vid 2R vinst")
+trailOffset = input.float(1.2, "Trailing Stop ATR Mult", step=0.1, group=grpRisk, tooltip="Minskat från 1.5 - tightare trailing")
 
 // Breakeven
 useBreakeven = input.bool(true, "✓ Flytta SL till breakeven", group=grpRisk, tooltip="Rekommenderat för 15min")
-breakevenTrigger = input.float(1.2, "Breakeven vid R-multipel", minval=0.8, maxval=2.0, step=0.1, group=grpRisk, tooltip="Ökat från 1.0 till 1.2")
+breakevenTrigger = input.float(1.2, "Breakeven vid R-multipel", step=0.1, group=grpRisk, tooltip="Ökat från 1.0 till 1.2")
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════════
+// 📖 SÅ FUNGERAR STOP LOSS I DENNA STRATEGI - LÄS DETTA!
+// ═══════════════════════════════════════════════════════════════════════════════════════════════════
+//
+// VIKTIG INFORMATION OM STOP LOSS BETEENDE:
+//
+// 1️⃣ INITIAL SL PLACERING (vid entry):
+//    - SL beräknas från entry-pris minus ATR × atrMultSL (default 3.0 ATR)
+//    - OM DCA är aktiverat: SL justeras för att ligga BORTOM sista DCA-nivån
+//      Exempel: Med 2 DCA @ 2.5 ATR spacing → SL = 5.5 ATR (2×2.5 + 0.5 buffer)
+//    - SL filtreras genom liquidation-skydd (säkerställer minsta avstånd till liq)
+//
+// 2️⃣ SL AKTIVERING - KRITISKT ATT FÖRSTÅ:
+//    ❌ SL är INAKTIV medan DCA entries pågår (dca_count < dca_max_entries)
+//    ✅ SL aktiveras ENDAST när ALLA DCA entries är klara (dca_count >= dca_max_entries)
+//    ⚠️  UNDANTAG: Liquidation emergency stop triggar ALLTID (oavsett DCA status)
+//
+//    Detta betyder:
+//    - Under DCA-fas: Kan bara exit via TP eller Partial TP
+//    - Efter DCA-fas: Normal risk management (SL, TP, Trailing, Breakeven)
+//
+// 3️⃣ SL UPPDATERINGAR (efter varje DCA):
+//    - När DCA körs → Ny avg_entry beräknas
+//    - SL omberäknas från nya avg_entry (inte från original entry)
+//    - TP omberäknas också från nya avg_entry
+//    - Detta ger dynamisk risk management baserat på faktiskt genomsnittspris
+//
+// 4️⃣ BREAKEVEN MOVE (när vinst >= breakevenTrigger):
+//    - SL flyttas till avg_entry + lite marginal (0.1 ATR)
+//    - Skyddar mot att gå back i förlust efter vinst
+//    - Triggar vid 1.2R profit (konfigurerbart)
+//
+// 5️⃣ TRAILING STOP (när vinst >= trailActivation):
+//    - Aktiveras vid 2.0R profit
+//    - SL följer priset på avstånd = trailOffset × ATR (default 1.2 ATR)
+//    - Uppdateras kontinuerligt när nya highs/lows bildas
+//    - Låser in vinst samtidigt som positionen får köra
+//
+// 6️⃣ LIQUIDATION EMERGENCY:
+//    - Övervakar konstant avstånd till liquidation price
+//    - Om avstånd < min_liq_distance (8%) → TVÅNGSCLOSE
+//    - Detta går FÖRE alla andra SL-regler
+//    - Skyddar mot total förlust vid extrema rörelser
+//
+// SAMMANFATTNING:
+// Entry → DCA fas (endast TP möjlig) → Alla DCAs klara → SL aktiveras →
+// → Breakeven vid 1.2R → Trailing vid 2.0R → Exit via SL/TP
+//
+// ═══════════════════════════════════════════════════════════════════════════════════════════════════
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 📦 VOLUME FILTER (STRIKTARE)
@@ -116,8 +188,8 @@ breakevenTrigger = input.float(1.2, "Breakeven vid R-multipel", minval=0.8, maxv
 
 grpVol = "📦 Volume Filter [Tightened]"
 useVolFilter = input.bool(true, "✓ Use Volume Filter", group=grpVol, tooltip="KRITISKT - filtrera låg volym")
-volMultiplier = input.float(1.4, "Volume Multiplier", minval=1.0, maxval=3.0, step=0.1, group=grpVol, tooltip="1.4x = volym måste vara 40% över genomsnitt")
-volLen = input.int(24, "Volume MA Length", minval=10, maxval=50, group=grpVol, tooltip="24 bars = 6 timmar på 15min")
+volMultiplier = input.float(1.4, "Volume Multiplier", step=0.1, group=grpVol, tooltip="1.4x = volym måste vara 40% över genomsnitt")
+volLen = input.int(24, "Volume MA Length", group=grpVol, tooltip="24 bars = 6 timmar på 15min")
 volIncreasing = input.bool(false, "✓ Kräv ökande volym", group=grpVol, tooltip="Extra strikt filter - kan aktiveras för ännu färre trades")
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -288,10 +360,13 @@ shortCond = shortSignal and rsiShortOK and trendAlignShort and volCondition and 
 // ══════════════════════════════════════════════════════════════════════════════
 
 var float entry_price = na
-var float avg_entry = na
+var float avg_entry = na  // För interna SL/TP beräkningar
 var float stop_loss = na
 var float take_profit = na
-var float partial_tp_price = na
+var float partial_tp1_price = na
+var float partial_tp2_price = na
+var float partial_tp3_price = na
+var float partial_tp4_price = na
 var float liq_price = na
 var float initial_sl_dist = na
 var int dca_count = 0
@@ -299,7 +374,10 @@ var float base_qty = 0.0
 var float total_qty = 0.0
 var bool is_long = false
 var bool is_short = false
-var bool partial_taken = false
+var bool partial1_taken = false
+var bool partial2_taken = false
+var bool partial3_taken = false
+var bool partial4_taken = false
 var bool breakeven_moved = false
 var bool trail_activated = false
 var float trail_high = na
@@ -313,7 +391,10 @@ if not in_position and (is_long[1] or is_short[1])
     avg_entry := na
     stop_loss := na
     take_profit := na
-    partial_tp_price := na
+    partial_tp1_price := na
+    partial_tp2_price := na
+    partial_tp3_price := na
+    partial_tp4_price := na
     liq_price := na
     initial_sl_dist := na
     dca_count := 0
@@ -321,7 +402,10 @@ if not in_position and (is_long[1] or is_short[1])
     total_qty := 0.0
     is_long := false
     is_short := false
-    partial_taken := false
+    partial1_taken := false
+    partial2_taken := false
+    partial3_taken := false
+    partial4_taken := false
     breakeven_moved := false
     trail_activated := false
     trail_high := na
@@ -356,7 +440,6 @@ if longCond and not in_position
     safe_sl = calc_safe_sl(close, raw_sl, true)
     sl_dist = close - safe_sl
     tp = close + (atrValue * atrMultTP)
-    partial_tp = close + (sl_dist * partialTPTrigger)
     liq = calc_liq_price(close, true)
     sl_to_liq_pct = (safe_sl - liq) / close * 100
 
@@ -365,13 +448,22 @@ if longCond and not in_position
         avg_entry := close
         stop_loss := safe_sl
         take_profit := tp
-        partial_tp_price := partial_tp
+
+        // Sätt partial TP prices baserat på R-multiplar
+        partial_tp1_price := partial1_enabled ? close + (sl_dist * partial1_trigger) : na
+        partial_tp2_price := partial2_enabled ? close + (sl_dist * partial2_trigger) : na
+        partial_tp3_price := partial3_enabled ? close + (sl_dist * partial3_trigger) : na
+        partial_tp4_price := partial4_enabled ? close + (sl_dist * partial4_trigger) : na
+
         liq_price := liq
         initial_sl_dist := sl_dist
         dca_count := 1
         is_long := true
         is_short := false
-        partial_taken := false
+        partial1_taken := false
+        partial2_taken := false
+        partial3_taken := false
+        partial4_taken := false
         breakeven_moved := false
         trail_activated := false
         trail_high := high
@@ -401,7 +493,6 @@ if shortCond and not in_position
     safe_sl = calc_safe_sl(close, raw_sl, false)
     sl_dist = safe_sl - close
     tp = close - (atrValue * atrMultTP)
-    partial_tp = close - (sl_dist * partialTPTrigger)
     liq = calc_liq_price(close, false)
     sl_to_liq_pct = (liq - safe_sl) / close * 100
 
@@ -410,13 +501,22 @@ if shortCond and not in_position
         avg_entry := close
         stop_loss := safe_sl
         take_profit := tp
-        partial_tp_price := partial_tp
+
+        // Sätt partial TP prices baserat på R-multiplar
+        partial_tp1_price := partial1_enabled ? close - (sl_dist * partial1_trigger) : na
+        partial_tp2_price := partial2_enabled ? close - (sl_dist * partial2_trigger) : na
+        partial_tp3_price := partial3_enabled ? close - (sl_dist * partial3_trigger) : na
+        partial_tp4_price := partial4_enabled ? close - (sl_dist * partial4_trigger) : na
+
         liq_price := liq
         initial_sl_dist := sl_dist
         dca_count := 1
         is_long := false
         is_short := true
-        partial_taken := false
+        partial1_taken := false
+        partial2_taken := false
+        partial3_taken := false
+        partial4_taken := false
         breakeven_moved := false
         trail_activated := false
         trail_high := high
@@ -462,7 +562,14 @@ if use_dca and in_position and dca_count < dca_max_entries
                 stop_loss := new_sl
                 liq_price := new_liq
                 take_profit := new_avg + (atrValue * atrMultTP)
-                partial_tp_price := new_avg + ((new_avg - new_sl) * partialTPTrigger)
+
+                // Uppdatera partial TP prices från nya avg_entry
+                new_sl_dist = new_avg - new_sl
+                partial_tp1_price := partial1_enabled ? new_avg + (new_sl_dist * partial1_trigger) : na
+                partial_tp2_price := partial2_enabled ? new_avg + (new_sl_dist * partial2_trigger) : na
+                partial_tp3_price := partial3_enabled ? new_avg + (new_sl_dist * partial3_trigger) : na
+                partial_tp4_price := partial4_enabled ? new_avg + (new_sl_dist * partial4_trigger) : na
+
                 dca_count += 1
 
                 strategy.entry("Long", strategy.long, qty=dca_qty, comment="DCA" + str.tostring(dca_count))
@@ -484,7 +591,14 @@ if use_dca and in_position and dca_count < dca_max_entries
                 stop_loss := new_sl
                 liq_price := new_liq
                 take_profit := new_avg - (atrValue * atrMultTP)
-                partial_tp_price := new_avg - ((new_sl - new_avg) * partialTPTrigger)
+
+                // Uppdatera partial TP prices från nya avg_entry
+                new_sl_dist = new_sl - new_avg
+                partial_tp1_price := partial1_enabled ? new_avg - (new_sl_dist * partial1_trigger) : na
+                partial_tp2_price := partial2_enabled ? new_avg - (new_sl_dist * partial2_trigger) : na
+                partial_tp3_price := partial3_enabled ? new_avg - (new_sl_dist * partial3_trigger) : na
+                partial_tp4_price := partial4_enabled ? new_avg - (new_sl_dist * partial4_trigger) : na
+
                 dca_count += 1
 
                 strategy.entry("Short", strategy.short, qty=dca_qty, comment="DCA" + str.tostring(dca_count))
@@ -512,25 +626,83 @@ if in_position and not na(avg_entry)
                  style=is_long ? label.style_label_up : label.style_label_down, color=colLiq, textcolor=color.white, size=size.normal, yloc=yloc.price)
 
 // ══════════════════════════════════════════════════════════════════════════════
-// 💰 PARTIAL TAKE PROFIT (NYTT!)
+// 💰 MULTI-LEVEL PARTIAL TAKE PROFIT
 // ══════════════════════════════════════════════════════════════════════════════
 
-if usePartialTP and in_position and not partial_taken and not na(partial_tp_price)
-    partial_hit = (is_long and high >= partial_tp_price) or (is_short and low <= partial_tp_price)
+// Partial TP Level 1
+if usePartialTP and partial1_enabled and in_position and not partial1_taken and not na(partial_tp1_price)
+    partial1_hit = (is_long and high >= partial_tp1_price) or (is_short and low <= partial_tp1_price)
 
-    if partial_hit
-        partial_qty = strategy.position_size * (partialTPPercent / 100)
+    if partial1_hit
+        partial_qty = strategy.position_size * (partial1_pct / 100)
 
         if is_long
-            strategy.close("Long", qty=math.abs(partial_qty), comment="Partial TP")
+            strategy.close("Long", qty=math.abs(partial_qty), comment="TP1")
         else
-            strategy.close("Short", qty=math.abs(partial_qty), comment="Partial TP")
+            strategy.close("Short", qty=math.abs(partial_qty), comment="TP1")
 
-        partial_taken := true
+        partial1_taken := true
 
         if showTradeLabels
-            profit_pct = is_long ? (partial_tp_price - avg_entry) / avg_entry * 100 : (avg_entry - partial_tp_price) / avg_entry * 100
-            label.new(bar_index, is_long ? (high + atrValue * 1.5) : (low - atrValue * 1.5), "💰 Partial TP\n✅ " + str.tostring(partialTPPercent, "#") + "% @ +" + str.tostring(profit_pct, "#.#") + "%",
+            profit_pct = is_long ? (partial_tp1_price - strategy.position_avg_price) / strategy.position_avg_price * 100 : (strategy.position_avg_price - partial_tp1_price) / strategy.position_avg_price * 100
+            label.new(bar_index, is_long ? (high + atrValue * 1.5) : (low - atrValue * 1.5), "💰 TP1\n✅ " + str.tostring(partial1_pct, "#") + "% @ +" + str.tostring(profit_pct, "#.#") + "%",
+                 style=is_long ? label.style_label_down : label.style_label_up, color=color.new(colPartial, 10), textcolor=color.white, size=size.small, yloc=yloc.price)
+
+// Partial TP Level 2
+if usePartialTP and partial2_enabled and in_position and not partial2_taken and not na(partial_tp2_price)
+    partial2_hit = (is_long and high >= partial_tp2_price) or (is_short and low <= partial_tp2_price)
+
+    if partial2_hit
+        partial_qty = strategy.position_size * (partial2_pct / 100)
+
+        if is_long
+            strategy.close("Long", qty=math.abs(partial_qty), comment="TP2")
+        else
+            strategy.close("Short", qty=math.abs(partial_qty), comment="TP2")
+
+        partial2_taken := true
+
+        if showTradeLabels
+            profit_pct = is_long ? (partial_tp2_price - strategy.position_avg_price) / strategy.position_avg_price * 100 : (strategy.position_avg_price - partial_tp2_price) / strategy.position_avg_price * 100
+            label.new(bar_index, is_long ? (high + atrValue * 1.5) : (low - atrValue * 1.5), "💰 TP2\n✅ " + str.tostring(partial2_pct, "#") + "% @ +" + str.tostring(profit_pct, "#.#") + "%",
+                 style=is_long ? label.style_label_down : label.style_label_up, color=color.new(colPartial, 10), textcolor=color.white, size=size.small, yloc=yloc.price)
+
+// Partial TP Level 3
+if usePartialTP and partial3_enabled and in_position and not partial3_taken and not na(partial_tp3_price)
+    partial3_hit = (is_long and high >= partial_tp3_price) or (is_short and low <= partial_tp3_price)
+
+    if partial3_hit
+        partial_qty = strategy.position_size * (partial3_pct / 100)
+
+        if is_long
+            strategy.close("Long", qty=math.abs(partial_qty), comment="TP3")
+        else
+            strategy.close("Short", qty=math.abs(partial_qty), comment="TP3")
+
+        partial3_taken := true
+
+        if showTradeLabels
+            profit_pct = is_long ? (partial_tp3_price - strategy.position_avg_price) / strategy.position_avg_price * 100 : (strategy.position_avg_price - partial_tp3_price) / strategy.position_avg_price * 100
+            label.new(bar_index, is_long ? (high + atrValue * 1.5) : (low - atrValue * 1.5), "💰 TP3\n✅ " + str.tostring(partial3_pct, "#") + "% @ +" + str.tostring(profit_pct, "#.#") + "%",
+                 style=is_long ? label.style_label_down : label.style_label_up, color=color.new(colPartial, 10), textcolor=color.white, size=size.small, yloc=yloc.price)
+
+// Partial TP Level 4
+if usePartialTP and partial4_enabled and in_position and not partial4_taken and not na(partial_tp4_price)
+    partial4_hit = (is_long and high >= partial_tp4_price) or (is_short and low <= partial_tp4_price)
+
+    if partial4_hit
+        partial_qty = strategy.position_size * (partial4_pct / 100)
+
+        if is_long
+            strategy.close("Long", qty=math.abs(partial_qty), comment="TP4")
+        else
+            strategy.close("Short", qty=math.abs(partial_qty), comment="TP4")
+
+        partial4_taken := true
+
+        if showTradeLabels
+            profit_pct = is_long ? (partial_tp4_price - strategy.position_avg_price) / strategy.position_avg_price * 100 : (strategy.position_avg_price - partial_tp4_price) / strategy.position_avg_price * 100
+            label.new(bar_index, is_long ? (high + atrValue * 1.5) : (low - atrValue * 1.5), "💰 TP4\n✅ " + str.tostring(partial4_pct, "#") + "% @ +" + str.tostring(profit_pct, "#.#") + "%",
                  style=is_long ? label.style_label_down : label.style_label_up, color=color.new(colPartial, 10), textcolor=color.white, size=size.small, yloc=yloc.price)
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -586,11 +758,24 @@ if in_position and not na(avg_entry) and not na(initial_sl_dist)
 // ══════════════════════════════════════════════════════════════════════════════
 
 if in_position and not na(stop_loss) and not na(take_profit)
+    // SL only active when ALL DCA entries are complete (or DCA disabled)
+    dca_complete = not use_dca or dca_count >= dca_max_entries
+
     if is_long
-        strategy.exit("Exit Long", "Long", stop=stop_loss, limit=take_profit, comment_profit="TP✓", comment_loss="SL✗")
+        if dca_complete
+            // All DCAs done - use both SL and TP
+            strategy.exit("Exit Long", "Long", stop=stop_loss, limit=take_profit, comment_profit="TP✓", comment_loss="SL✗")
+        else
+            // DCAs still pending - only use TP, NO SL
+            strategy.exit("Exit Long", "Long", limit=take_profit, comment_profit="TP✓")
 
     if is_short
-        strategy.exit("Exit Short", "Short", stop=stop_loss, limit=take_profit, comment_profit="TP✓", comment_loss="SL✗")
+        if dca_complete
+            // All DCAs done - use both SL and TP
+            strategy.exit("Exit Short", "Short", stop=stop_loss, limit=take_profit, comment_profit="TP✓", comment_loss="SL✗")
+        else
+            // DCAs still pending - only use TP, NO SL
+            strategy.exit("Exit Short", "Short", limit=take_profit, comment_profit="TP✓")
 
 // Exit alerts
 if strategy.position_size == 0 and strategy.position_size[1] > 0
@@ -613,10 +798,20 @@ pTrend = plot(showEMAs ? emaTrend : na, "Trend EMA", colTrendEMA, 3)
 // EMA Fill
 fill(pFast, pSlow, emaFast > emaSlow ? color.new(colBull, 90) : color.new(colBear, 90))
 
-// SL/TP Lines
-plot(showSLTP and in_position ? stop_loss : na, "SL", colSL, 2, plot.style_linebr)
+// SL/TP Lines (SL only shown when all DCAs complete)
+sl_active = in_position and (not use_dca or dca_count >= dca_max_entries)
+plot(showSLTP and sl_active ? stop_loss : na, "SL", colSL, 2, plot.style_linebr)
 plot(showSLTP and in_position ? take_profit : na, "TP", colTP, 2, plot.style_linebr)
-plot(showPartialTP and in_position and not partial_taken ? partial_tp_price : na, "Partial TP", colPartial, 2, plot.style_circles)
+
+// UNIT COST LINE - visar EXAKT inköpspris (från TradingView)
+plot(in_position ? strategy.position_avg_price : na, "🏷️ Unit Cost", color.new(color.yellow, 0), 2, plot.style_line)
+
+// Multi-Level Partial TP Lines
+plot(showPartialTP and in_position and partial1_enabled and not partial1_taken ? partial_tp1_price : na, "Partial TP1", colPartial, 1, plot.style_circles)
+plot(showPartialTP and in_position and partial2_enabled and not partial2_taken ? partial_tp2_price : na, "Partial TP2", colPartial, 1, plot.style_circles)
+plot(showPartialTP and in_position and partial3_enabled and not partial3_taken ? partial_tp3_price : na, "Partial TP3", colPartial, 1, plot.style_circles)
+plot(showPartialTP and in_position and partial4_enabled and not partial4_taken ? partial_tp4_price : na, "Partial TP4", colPartial, 1, plot.style_circles)
+
 plot(showLiqLine and in_position ? liq_price : na, "Liq", colLiq, 2, plot.style_linebr)
 
 // Breakeven Line
@@ -653,7 +848,7 @@ if showInfoPanel
     var table panel = table.new(position.top_right, 2, 28, bgcolor=color.new(#000000, 80), border_width=2, border_color=color.gray)
 
     // Header
-    table.cell(panel, 0, 0, "⚡ SCALPER v8.0 [15M]", text_color=color.white, text_size=size.normal, bgcolor=color.new(#2962FF, 50))
+    table.cell(panel, 0, 0, "⚡ SCALPER v8.5 [15M]", text_color=color.white, text_size=size.normal, bgcolor=color.new(#2962FF, 50))
     table.merge_cells(panel, 0, 0, 1, 0)
 
     row = 1
@@ -712,9 +907,22 @@ if showInfoPanel
     table.cell(panel, 1, row, posTxt, text_color=posCol, text_size=size.tiny)
     row += 1
 
-    // Entry
-    table.cell(panel, 0, row, "Entry", text_color=color.white, text_size=size.tiny)
-    table.cell(panel, 1, row, in_position ? str.tostring(avg_entry, format.mintick) : "—", text_color=color.white, text_size=size.tiny)
+    // 🏷️ UNIT COST - EXAKT inköpspris
+    table.cell(panel, 0, row, "🏷️ Unit Cost", text_color=color.white, text_size=size.tiny)
+    table.cell(panel, 1, row, in_position ? str.tostring(strategy.position_avg_price, format.mintick) : "—", text_color=color.yellow, text_size=size.tiny)
+    row += 1
+
+    // Total Entries (initial + DCA)
+    table.cell(panel, 0, row, "Total Entries", text_color=color.white, text_size=size.tiny)
+    totalEntriesTxt = in_position ? str.tostring(dca_count) + " entries" : "—"
+    table.cell(panel, 1, row, totalEntriesTxt, text_color=color.white, text_size=size.tiny)
+    row += 1
+
+    // Total Position Value
+    table.cell(panel, 0, row, "Position Value", text_color=color.white, text_size=size.tiny)
+    posValue = in_position ? strategy.position_avg_price * math.abs(strategy.position_size) : 0.0
+    posValueTxt = in_position ? "$" + str.tostring(posValue, "#") : "—"
+    table.cell(panel, 1, row, posValueTxt, text_color=color.white, text_size=size.tiny)
     row += 1
 
     // Current R
@@ -731,12 +939,20 @@ if showInfoPanel
     table.cell(panel, 1, row, pnlTxt, text_color=in_position ? pnlCol : color.gray, text_size=size.tiny)
     row += 1
 
-    // SL
+    // SL (inactive until all DCAs complete)
     table.cell(panel, 0, row, "Stop Loss", text_color=color.white, text_size=size.tiny)
-    slTxt = in_position ? str.tostring(stop_loss, format.mintick) : "—"
-    if breakeven_moved
-        slTxt += " 🔒"
-    table.cell(panel, 1, row, slTxt, text_color=colSL, text_size=size.tiny)
+    if in_position and use_dca and dca_count < dca_max_entries
+        slTxt = "⏸️ Väntar DCA"
+        slCol = color.gray
+    else if in_position
+        slTxt = str.tostring(stop_loss, format.mintick)
+        if breakeven_moved
+            slTxt += " 🔒"
+        slCol = colSL
+    else
+        slTxt = "—"
+        slCol = color.gray
+    table.cell(panel, 1, row, slTxt, text_color=slCol, text_size=size.tiny)
     row += 1
 
     // TP
@@ -744,11 +960,12 @@ if showInfoPanel
     table.cell(panel, 1, row, in_position ? str.tostring(take_profit, format.mintick) : "—", text_color=colTP, text_size=size.tiny)
     row += 1
 
-    // Partial TP
-    if usePartialTP
-        table.cell(panel, 0, row, "Partial TP", text_color=color.white, text_size=size.tiny)
-        partialTxt = in_position and not partial_taken ? str.tostring(partial_tp_price, format.mintick) : partial_taken ? "✅ Taken" : "—"
-        table.cell(panel, 1, row, partialTxt, text_color=partial_taken ? colBull : colPartial, text_size=size.tiny)
+    // Multi-Level Partial TP Status
+    if usePartialTP and numPartialLevels > 0
+        table.cell(panel, 0, row, "Partial TPs", text_color=color.white, text_size=size.tiny)
+        tp_taken_count = (partial1_taken ? 1 : 0) + (partial2_taken ? 1 : 0) + (partial3_taken ? 1 : 0) + (partial4_taken ? 1 : 0)
+        partialStatusTxt = str.tostring(tp_taken_count) + "/" + str.tostring(numPartialLevels) + " taken"
+        table.cell(panel, 1, row, partialStatusTxt, text_color=tp_taken_count > 0 ? colBull : colPartial, text_size=size.tiny)
         row += 1
 
     // Trailing
@@ -765,11 +982,20 @@ if showInfoPanel
     table.cell(panel, 1, row, liqTxt, text_color=liqCol, text_size=size.tiny)
     row += 1
 
-    // DCA
-    table.cell(panel, 0, row, "DCA", text_color=color.white, text_size=size.tiny)
-    dcaTxt = use_dca ? str.tostring(dca_count) + "/" + str.tostring(dca_max_entries) : "OFF"
-    table.cell(panel, 1, row, dcaTxt, text_color=use_dca ? colDCA : color.gray, text_size=size.tiny)
+    // DCA Status
+    table.cell(panel, 0, row, "DCA Gjorda", text_color=color.white, text_size=size.tiny)
+    dca_done = use_dca ? dca_count - 1 : 0  // -1 för initial entry räknas inte som DCA
+    dcaDoneTxt = use_dca ? str.tostring(dca_done) : "OFF"
+    table.cell(panel, 1, row, dcaDoneTxt, text_color=use_dca ? colDCA : color.gray, text_size=size.tiny)
     row += 1
+
+    // DCA Kvar
+    if use_dca
+        table.cell(panel, 0, row, "DCA Kvar", text_color=color.white, text_size=size.tiny)
+        dca_remaining = math.max(0, dca_max_entries - dca_count)
+        dcaRemainTxt = str.tostring(dca_remaining)
+        table.cell(panel, 1, row, dcaRemainTxt, text_color=dca_remaining > 0 ? colDCA : color.gray, text_size=size.tiny)
+        row += 1
 
     // Separator
     table.cell(panel, 0, row, "═══════════", text_color=color.gray, text_size=size.tiny, bgcolor=color.new(color.gray, 85))
