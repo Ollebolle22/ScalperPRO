@@ -2,7 +2,7 @@
 // © Optimized Momentum Scalper - 15M Timeframe Specialist
 
 //@version=6
-strategy("⚡ Momentum Scalper PRO v10.1 [15M Optimized]",
+strategy("⚡ Momentum Scalper PRO v11.0 [15M Optimized]",
      overlay=true,
      pyramiding=5,
      calc_on_every_tick=false,
@@ -38,7 +38,13 @@ grpDCA = "🔄 DCA (Dollar Cost Average)"
 use_dca = input.bool(true, "✓ Aktivera DCA", group=grpDCA, tooltip="Lägg till position vid drawdown - NU MED BÄTTRE KONTROLL")
 dca_max_entries = input.int(2, "Max DCA entries", group=grpDCA, tooltip="Reducerat från 5 till 2 för bättre risk management")
 dca_mode = input.string("ATR Smart", "DCA Trigger-läge", options=["ATR Smart", "Fixed %"], group=grpDCA, tooltip="ATR Smart rekommenderas för 15min")
-dca_atr_mult = input.float(2.5, "ATR Multiplikator", step=0.25, group=grpDCA, tooltip="Ökat från 2.0 till 2.5 för 15min")
+
+// 🔄 DYNAMISK DCA SPACING (Volatilitetsbaserad)
+useDynamicDCA = input.bool(true, "✓ Dynamisk DCA Spacing", group=grpDCA, tooltip="DCA-avstånd anpassas efter volatilitet")
+dcaBaseMultiplier = input.float(2.0, "🔄 DCA Base Multipel (låg vol)", step=0.25, group=grpDCA, tooltip="Minimum DCA-spacing vid låg volatilitet - tätare DCAs")
+dcaMaxMultiplier = input.float(4.0, "🔄 DCA Max Multipel (hög vol)", step=0.25, group=grpDCA, tooltip="Maximum DCA-spacing vid hög volatilitet - bredare DCAs")
+dca_atr_mult = input.float(2.5, "⚠️ Fallback ATR Multiplikator", step=0.25, group=grpDCA, tooltip="Används endast om dynamisk DCA är avstängd")
+
 dca_fixed_pct = input.float(4.0, "Fixed % avstånd", step=0.5, group=grpDCA, tooltip="Ökat från 3% till 4% för 15min volatilitet")
 dca_size_mult = input.float(1.3, "Storlek multiplikator", step=0.1, group=grpDCA, tooltip="Reducerat från 1.5 för säkrare DCA")
 require_trend_for_dca = input.bool(true, "✓ Kräv fortsatt trend för DCA", group=grpDCA, tooltip="NYT: Tillåt bara DCA om trenden håller i sig")
@@ -116,25 +122,36 @@ atrMultTP = input.float(7.0, "⚠️ Fallback TP Multipel", step=0.5, group=grpR
 usePartialTP = input.bool(true, "✓ Partial Take Profit System", group=grpRisk, tooltip="Multi-level partial TP - ta vinst stegvis")
 numPartialLevels = input.int(3, "Antal Partial TP Nivåer", step=1, group=grpRisk, tooltip="1-4 partial TP nivåer (0 = av)")
 
+// 📊 DYNAMISKA PARTIAL TP R-MULTIPLAR (Volatilitetsbaserade)
+useDynamicPartialTP = input.bool(true, "✓ Dynamiska Partial TP R-multiplar", group=grpRisk, tooltip="R-multiplar anpassas efter volatilitet")
+
 // Partial TP Level 1
 partial1_enabled = numPartialLevels >= 1
 partial1_pct = input.float(25.0, "📊 TP1: % av position", step=5.0, group=grpRisk, tooltip="Procent att sälja vid första TP")
-partial1_trigger = input.float(1.5, "📊 TP1: vid R-multipel", step=0.25, group=grpRisk, tooltip="Trigga vid 1.5R vinst")
+partial1_base_R = input.float(1.2, "📊 TP1: Base R (låg vol)", step=0.25, group=grpRisk, tooltip="TP1 R-multipel vid låg volatilitet")
+partial1_max_R = input.float(2.0, "📊 TP1: Max R (hög vol)", step=0.25, group=grpRisk, tooltip="TP1 R-multipel vid hög volatilitet")
+partial1_trigger = input.float(1.5, "⚠️ TP1: Fallback R", step=0.25, group=grpRisk, tooltip="Används om dynamisk TP är av")
 
 // Partial TP Level 2
 partial2_enabled = numPartialLevels >= 2
 partial2_pct = input.float(25.0, "📊 TP2: % av position", step=5.0, group=grpRisk, tooltip="Procent att sälja vid andra TP")
-partial2_trigger = input.float(2.5, "📊 TP2: vid R-multipel", step=0.25, group=grpRisk, tooltip="Trigga vid 2.5R vinst")
+partial2_base_R = input.float(2.0, "📊 TP2: Base R (låg vol)", step=0.25, group=grpRisk, tooltip="TP2 R-multipel vid låg volatilitet")
+partial2_max_R = input.float(3.5, "📊 TP2: Max R (hög vol)", step=0.25, group=grpRisk, tooltip="TP2 R-multipel vid hög volatilitet")
+partial2_trigger = input.float(2.5, "⚠️ TP2: Fallback R", step=0.25, group=grpRisk, tooltip="Används om dynamisk TP är av")
 
 // Partial TP Level 3
 partial3_enabled = numPartialLevels >= 3
 partial3_pct = input.float(25.0, "📊 TP3: % av position", step=5.0, group=grpRisk, tooltip="Procent att sälja vid tredje TP")
-partial3_trigger = input.float(3.5, "📊 TP3: vid R-multipel", step=0.25, group=grpRisk, tooltip="Trigga vid 3.5R vinst")
+partial3_base_R = input.float(2.8, "📊 TP3: Base R (låg vol)", step=0.25, group=grpRisk, tooltip="TP3 R-multipel vid låg volatilitet")
+partial3_max_R = input.float(5.0, "📊 TP3: Max R (hög vol)", step=0.25, group=grpRisk, tooltip="TP3 R-multipel vid hög volatilitet")
+partial3_trigger = input.float(3.5, "⚠️ TP3: Fallback R", step=0.25, group=grpRisk, tooltip="Används om dynamisk TP är av")
 
 // Partial TP Level 4
 partial4_enabled = numPartialLevels >= 4
 partial4_pct = input.float(25.0, "📊 TP4: % av position", step=5.0, group=grpRisk, tooltip="Procent att sälja vid fjärde TP")
-partial4_trigger = input.float(5.0, "📊 TP4: vid R-multipel", step=0.25, group=grpRisk, tooltip="Trigga vid 5.0R vinst")
+partial4_base_R = input.float(4.0, "📊 TP4: Base R (låg vol)", step=0.25, group=grpRisk, tooltip="TP4 R-multipel vid låg volatilitet")
+partial4_max_R = input.float(7.0, "📊 TP4: Max R (hög vol)", step=0.25, group=grpRisk, tooltip="TP4 R-multipel vid hög volatilitet")
+partial4_trigger = input.float(5.0, "⚠️ TP4: Fallback R", step=0.25, group=grpRisk, tooltip="Används om dynamisk TP är av")
 
 // Trailing Stop (FIXAD!)
 useTrailingStop = input.bool(true, "✓ Use Trailing Stop", group=grpRisk, tooltip="FIXAD implementation")
@@ -309,6 +326,73 @@ dynamicSLMult = if useDynamicSL
 else
     atrMultSL  // Fallback till fast SL
 
+// 🔄 DYNAMISK DCA SPACING (Volatilitetsbaserad)
+// Hög volatilitet → bredare DCA spacing (undvik för tidig trigga)
+// Låg volatilitet → tätare DCA spacing (bättre avgpris)
+dynamicDCAMult = if useDynamicDCA
+    if volRatio >= volThreshold
+        dcaMaxMultiplier  // Hög volatilitet - bredare DCAs
+    else if volRatio <= 1.0
+        dcaBaseMultiplier  // Låg volatilitet - tätare DCAs
+    else
+        // Interpolera mellan base och max
+        vol_range = volThreshold - 1.0
+        progress = (volRatio - 1.0) / vol_range
+        dcaBaseMultiplier + (progress * (dcaMaxMultiplier - dcaBaseMultiplier))
+else
+    dca_atr_mult  // Fallback till fast DCA spacing
+
+// 📊 DYNAMISKA PARTIAL TP R-MULTIPLAR (Volatilitetsbaserade)
+// Hög volatilitet → lägre R-multiplar (TP träffas lättare)
+// Låg volatilitet → högre R-multiplar (mer vinst per TP)
+dynamicPartial1_R = if useDynamicPartialTP
+    if volRatio >= volThreshold
+        partial1_max_R  // Hög volatilitet - lägre R för att träffa lättare
+    else if volRatio <= 1.0
+        partial1_base_R  // Låg volatilitet - högre R för mer vinst
+    else
+        vol_range = volThreshold - 1.0
+        progress = (volRatio - 1.0) / vol_range
+        partial1_base_R + (progress * (partial1_max_R - partial1_base_R))
+else
+    partial1_trigger
+
+dynamicPartial2_R = if useDynamicPartialTP
+    if volRatio >= volThreshold
+        partial2_max_R
+    else if volRatio <= 1.0
+        partial2_base_R
+    else
+        vol_range = volThreshold - 1.0
+        progress = (volRatio - 1.0) / vol_range
+        partial2_base_R + (progress * (partial2_max_R - partial2_base_R))
+else
+    partial2_trigger
+
+dynamicPartial3_R = if useDynamicPartialTP
+    if volRatio >= volThreshold
+        partial3_max_R
+    else if volRatio <= 1.0
+        partial3_base_R
+    else
+        vol_range = volThreshold - 1.0
+        progress = (volRatio - 1.0) / vol_range
+        partial3_base_R + (progress * (partial3_max_R - partial3_base_R))
+else
+    partial3_trigger
+
+dynamicPartial4_R = if useDynamicPartialTP
+    if volRatio >= volThreshold
+        partial4_max_R
+    else if volRatio <= 1.0
+        partial4_base_R
+    else
+        vol_range = volThreshold - 1.0
+        progress = (volRatio - 1.0) / vol_range
+        partial4_base_R + (progress * (partial4_max_R - partial4_base_R))
+else
+    partial4_trigger
+
 // Volume
 volMA = ta.sma(volume, volLen)
 
@@ -466,7 +550,7 @@ if not in_position and (is_long[1] or is_short[1])
 // ══════════════════════════════════════════════════════════════════════════════
 
 calc_dca_trigger(entry, is_long_pos, dca_num) =>
-    dist = dca_mode == "ATR Smart" ? atrValue * dca_atr_mult * dca_num : entry * (dca_fixed_pct / 100) * dca_num
+    dist = dca_mode == "ATR Smart" ? atrValue * dynamicDCAMult * dca_num : entry * (dca_fixed_pct / 100) * dca_num
     is_long_pos ? entry - dist : entry + dist
 
 calc_dca_qty(base, dca_num) =>
@@ -482,7 +566,7 @@ get_bot_code(action) =>
 // LONG ENTRY
 if longCond and not in_position
     // DCA-aware SL calculation: ensure SL is beyond furthest DCA level
-    furthest_dca_dist = atrValue * dca_atr_mult * dca_max_entries
+    furthest_dca_dist = atrValue * dynamicDCAMult * dca_max_entries
     min_sl_dist = furthest_dca_dist + (atrValue * 0.5)
     actual_sl_dist = use_dca and dca_max_entries > 1 ? math.max(atrValue * dynamicSLMult, min_sl_dist) : atrValue * dynamicSLMult
     raw_sl = close - actual_sl_dist
@@ -499,11 +583,11 @@ if longCond and not in_position
         stop_loss := safe_sl
         take_profit := tp
 
-        // Sätt partial TP prices baserat på R-multiplar
-        partial_tp1_price := partial1_enabled ? close + (sl_dist * partial1_trigger) : na
-        partial_tp2_price := partial2_enabled ? close + (sl_dist * partial2_trigger) : na
-        partial_tp3_price := partial3_enabled ? close + (sl_dist * partial3_trigger) : na
-        partial_tp4_price := partial4_enabled ? close + (sl_dist * partial4_trigger) : na
+        // Sätt partial TP prices baserat på dynamiska R-multiplar
+        partial_tp1_price := partial1_enabled ? close + (sl_dist * dynamicPartial1_R) : na
+        partial_tp2_price := partial2_enabled ? close + (sl_dist * dynamicPartial2_R) : na
+        partial_tp3_price := partial3_enabled ? close + (sl_dist * dynamicPartial3_R) : na
+        partial_tp4_price := partial4_enabled ? close + (sl_dist * dynamicPartial4_R) : na
 
         liq_price := liq
         initial_sl_dist := sl_dist
@@ -539,7 +623,7 @@ if longCond and not in_position
 // SHORT ENTRY
 if shortCond and not in_position
     // DCA-aware SL calculation: ensure SL is beyond furthest DCA level
-    furthest_dca_dist = atrValue * dca_atr_mult * dca_max_entries
+    furthest_dca_dist = atrValue * dynamicDCAMult * dca_max_entries
     min_sl_dist = furthest_dca_dist + (atrValue * 0.5)
     actual_sl_dist = use_dca and dca_max_entries > 1 ? math.max(atrValue * dynamicSLMult, min_sl_dist) : atrValue * dynamicSLMult
     raw_sl = close + actual_sl_dist
@@ -556,11 +640,11 @@ if shortCond and not in_position
         stop_loss := safe_sl
         take_profit := tp
 
-        // Sätt partial TP prices baserat på R-multiplar
-        partial_tp1_price := partial1_enabled ? close - (sl_dist * partial1_trigger) : na
-        partial_tp2_price := partial2_enabled ? close - (sl_dist * partial2_trigger) : na
-        partial_tp3_price := partial3_enabled ? close - (sl_dist * partial3_trigger) : na
-        partial_tp4_price := partial4_enabled ? close - (sl_dist * partial4_trigger) : na
+        // Sätt partial TP prices baserat på dynamiska R-multiplar
+        partial_tp1_price := partial1_enabled ? close - (sl_dist * dynamicPartial1_R) : na
+        partial_tp2_price := partial2_enabled ? close - (sl_dist * dynamicPartial2_R) : na
+        partial_tp3_price := partial3_enabled ? close - (sl_dist * dynamicPartial3_R) : na
+        partial_tp4_price := partial4_enabled ? close - (sl_dist * dynamicPartial4_R) : na
 
         liq_price := liq
         initial_sl_dist := sl_dist
@@ -621,12 +705,12 @@ if use_dca and in_position and dca_count < dca_max_entries
                 liq_price := new_liq
                 take_profit := new_avg + (atrValue * dynamicTPMult)
 
-                // Uppdatera partial TP prices från nya avg_entry
+                // Uppdatera partial TP prices från nya avg_entry (dynamiska R-multiplar)
                 new_sl_dist = new_avg - new_sl
-                partial_tp1_price := partial1_enabled ? new_avg + (new_sl_dist * partial1_trigger) : na
-                partial_tp2_price := partial2_enabled ? new_avg + (new_sl_dist * partial2_trigger) : na
-                partial_tp3_price := partial3_enabled ? new_avg + (new_sl_dist * partial3_trigger) : na
-                partial_tp4_price := partial4_enabled ? new_avg + (new_sl_dist * partial4_trigger) : na
+                partial_tp1_price := partial1_enabled ? new_avg + (new_sl_dist * dynamicPartial1_R) : na
+                partial_tp2_price := partial2_enabled ? new_avg + (new_sl_dist * dynamicPartial2_R) : na
+                partial_tp3_price := partial3_enabled ? new_avg + (new_sl_dist * dynamicPartial3_R) : na
+                partial_tp4_price := partial4_enabled ? new_avg + (new_sl_dist * dynamicPartial4_R) : na
 
                 total_qty := new_total
                 dca_count += 1
@@ -651,12 +735,12 @@ if use_dca and in_position and dca_count < dca_max_entries
                 liq_price := new_liq
                 take_profit := new_avg - (atrValue * dynamicTPMult)
 
-                // Uppdatera partial TP prices från nya avg_entry
+                // Uppdatera partial TP prices från nya avg_entry (dynamiska R-multiplar)
                 new_sl_dist = new_sl - new_avg
-                partial_tp1_price := partial1_enabled ? new_avg - (new_sl_dist * partial1_trigger) : na
-                partial_tp2_price := partial2_enabled ? new_avg - (new_sl_dist * partial2_trigger) : na
-                partial_tp3_price := partial3_enabled ? new_avg - (new_sl_dist * partial3_trigger) : na
-                partial_tp4_price := partial4_enabled ? new_avg - (new_sl_dist * partial4_trigger) : na
+                partial_tp1_price := partial1_enabled ? new_avg - (new_sl_dist * dynamicPartial1_R) : na
+                partial_tp2_price := partial2_enabled ? new_avg - (new_sl_dist * dynamicPartial2_R) : na
+                partial_tp3_price := partial3_enabled ? new_avg - (new_sl_dist * dynamicPartial3_R) : na
+                partial_tp4_price := partial4_enabled ? new_avg - (new_sl_dist * dynamicPartial4_R) : na
 
                 total_qty := new_total
                 dca_count += 1
@@ -925,7 +1009,7 @@ if showInfoPanel
     var table panel = table.new(position.top_right, 2, 32, bgcolor=color.new(#000000, 80), border_width=2, border_color=color.gray)
 
     // Header
-    table.cell(panel, 0, 0, "⚡ SCALPER v10.1 [15M]", text_color=color.white, text_size=size.normal, bgcolor=color.new(#2962FF, 50))
+    table.cell(panel, 0, 0, "⚡ SCALPER v11.0 [15M]", text_color=color.white, text_size=size.normal, bgcolor=color.new(#2962FF, 50))
     table.merge_cells(panel, 0, 0, 1, 0)
 
     row = 1
@@ -984,6 +1068,25 @@ if showInfoPanel
             table.cell(panel, 0, row, "TP Multipel", text_color=color.white, text_size=size.small)
             table.cell(panel, 1, row, str.tostring(dynamicTPMult, "#.#") + "x ATR", text_color=color.new(colTP, 0), text_size=size.small)
             row += 1
+
+    // 🔄 Dynamisk DCA Spacing
+    if useDynamicDCA
+        table.cell(panel, 0, row, "DCA Spacing", text_color=color.white, text_size=size.small)
+        table.cell(panel, 1, row, str.tostring(dynamicDCAMult, "#.#") + "x ATR", text_color=color.new(colDCA, 0), text_size=size.small)
+        row += 1
+
+    // 📊 Dynamiska Partial TP R-multiplar
+    if useDynamicPartialTP and usePartialTP and numPartialLevels > 0
+        table.cell(panel, 0, row, "Partial TP Rs", text_color=color.white, text_size=size.small)
+        r_values = str.tostring(dynamicPartial1_R, "#.#") + "R"
+        if numPartialLevels >= 2
+            r_values += ", " + str.tostring(dynamicPartial2_R, "#.#") + "R"
+        if numPartialLevels >= 3
+            r_values += ", " + str.tostring(dynamicPartial3_R, "#.#") + "R"
+        if numPartialLevels >= 4
+            r_values += ", " + str.tostring(dynamicPartial4_R, "#.#") + "R"
+        table.cell(panel, 1, row, r_values, text_color=color.new(colPartial, 0), text_size=size.small)
+        row += 1
 
     // Separator
     table.cell(panel, 0, row, "═══════════", text_color=color.gray, text_size=size.small, bgcolor=color.new(color.gray, 85))
