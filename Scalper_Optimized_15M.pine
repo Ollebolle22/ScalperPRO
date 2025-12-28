@@ -281,8 +281,8 @@ dynamicTPMult = if useDynamicTP
         tpBaseMultiplier  // Låg volatilitet - använd base TP
     else
         // Interpolera mellan base och max
-        range = volThreshold - 1.0
-        progress = (volRatio - 1.0) / range
+        vol_range = volThreshold - 1.0
+        progress = (volRatio - 1.0) / vol_range
         tpBaseMultiplier + (progress * (tpMaxMultiplier - tpBaseMultiplier))
 else
     atrMultTP  // Fallback till fast TP
