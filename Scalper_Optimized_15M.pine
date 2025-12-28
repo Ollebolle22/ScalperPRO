@@ -2,7 +2,7 @@
 // © Optimized Momentum Scalper - 15M Timeframe Specialist
 
 //@version=6
-strategy("⚡ Momentum Scalper PRO v10.0 [15M Optimized]",
+strategy("⚡ Momentum Scalper PRO v10.1 [15M Optimized]",
      overlay=true,
      calc_on_every_tick=false,
      process_orders_on_close=true,
@@ -96,7 +96,12 @@ macdHistIncreasing = input.bool(false, "✓ Kräv ökande histogram", group=grpM
 
 grpRisk = "🎯 Risk Management [Enhanced]"
 atrLen = input.int(20, "ATR Length", group=grpRisk, tooltip="Ökat från 14 till 20 för 15min smoothing")
-atrMultSL = input.float(3.0, "ATR Multiplier Stop Loss", step=0.1, group=grpRisk, tooltip="3.0 ATR = bredare SL, färre stop-outs")
+
+// 🛡️ DYNAMISK STOP LOSS (Volatilitetsbaserad)
+useDynamicSL = input.bool(true, "✓ Dynamisk Stop Loss", group=grpRisk, tooltip="SL anpassas efter marknadsvolatilitet")
+slBaseMultiplier = input.float(2.5, "🛑 SL Base Multipel (låg vol)", step=0.1, group=grpRisk, tooltip="Minimum SL vid låg volatilitet - tightare SL")
+slMaxMultiplier = input.float(4.0, "🛑 SL Max Multipel (hög vol)", step=0.1, group=grpRisk, tooltip="Maximum SL vid hög volatilitet - bredare SL")
+atrMultSL = input.float(3.0, "⚠️ Fallback SL Multipel", step=0.1, group=grpRisk, tooltip="Används endast om dynamisk SL är avstängd")
 
 // 🎯 DYNAMISK TAKE PROFIT (Volatilitetsbaserad)
 useDynamicTP = input.bool(true, "✓ Dynamisk Take Profit", group=grpRisk, tooltip="TP anpassas efter marknadsvolatilitet")
@@ -287,6 +292,22 @@ dynamicTPMult = if useDynamicTP
 else
     atrMultTP  // Fallback till fast TP
 
+// 🛡️ DYNAMISK SL BERÄKNING (Volatilitetsbaserad)
+// Hög volatilitet → bredare SL (undvik stop-outs)
+// Låg volatilitet → tightare SL (bättre risk/reward)
+dynamicSLMult = if useDynamicSL
+    if volRatio >= volThreshold
+        slMaxMultiplier  // Hög volatilitet - använd bredare SL
+    else if volRatio <= 1.0
+        slBaseMultiplier  // Låg volatilitet - använd tightare SL
+    else
+        // Interpolera mellan base och max
+        vol_range = volThreshold - 1.0
+        progress = (volRatio - 1.0) / vol_range
+        slBaseMultiplier + (progress * (slMaxMultiplier - slBaseMultiplier))
+else
+    atrMultSL  // Fallback till fast SL
+
 // Volume
 volMA = ta.sma(volume, volLen)
 
@@ -462,7 +483,7 @@ if longCond and not in_position
     // DCA-aware SL calculation: ensure SL is beyond furthest DCA level
     furthest_dca_dist = atrValue * dca_atr_mult * dca_max_entries
     min_sl_dist = furthest_dca_dist + (atrValue * 0.5)
-    actual_sl_dist = use_dca and dca_max_entries > 1 ? math.max(atrValue * atrMultSL, min_sl_dist) : atrValue * atrMultSL
+    actual_sl_dist = use_dca and dca_max_entries > 1 ? math.max(atrValue * dynamicSLMult, min_sl_dist) : atrValue * dynamicSLMult
     raw_sl = close - actual_sl_dist
 
     safe_sl = calc_safe_sl(close, raw_sl, true)
@@ -519,7 +540,7 @@ if shortCond and not in_position
     // DCA-aware SL calculation: ensure SL is beyond furthest DCA level
     furthest_dca_dist = atrValue * dca_atr_mult * dca_max_entries
     min_sl_dist = furthest_dca_dist + (atrValue * 0.5)
-    actual_sl_dist = use_dca and dca_max_entries > 1 ? math.max(atrValue * atrMultSL, min_sl_dist) : atrValue * atrMultSL
+    actual_sl_dist = use_dca and dca_max_entries > 1 ? math.max(atrValue * dynamicSLMult, min_sl_dist) : atrValue * dynamicSLMult
     raw_sl = close + actual_sl_dist
 
     safe_sl = calc_safe_sl(close, raw_sl, false)
@@ -589,7 +610,7 @@ if use_dca and in_position and dca_count < dca_max_entries
         new_avg = (current_value + new_value) / new_total
 
         if is_long
-            raw_sl = new_avg - (atrValue * atrMultSL)
+            raw_sl = new_avg - (atrValue * dynamicSLMult)
             new_sl = calc_safe_sl(new_avg, raw_sl, true)
             new_liq = calc_liq_price(new_avg, true)
 
@@ -619,7 +640,7 @@ if use_dca and in_position and dca_count < dca_max_entries
                          style=label.style_label_up, color=color.new(colDCA, 10), textcolor=color.white, size=size.normal, yloc=yloc.price)
 
         else if is_short
-            raw_sl = new_avg + (atrValue * atrMultSL)
+            raw_sl = new_avg + (atrValue * dynamicSLMult)
             new_sl = calc_safe_sl(new_avg, raw_sl, false)
             new_liq = calc_liq_price(new_avg, false)
 
@@ -903,7 +924,7 @@ if showInfoPanel
     var table panel = table.new(position.top_right, 2, 32, bgcolor=color.new(#000000, 80), border_width=2, border_color=color.gray)
 
     // Header
-    table.cell(panel, 0, 0, "⚡ SCALPER v10.0 [15M]", text_color=color.white, text_size=size.normal, bgcolor=color.new(#2962FF, 50))
+    table.cell(panel, 0, 0, "⚡ SCALPER v10.1 [15M]", text_color=color.white, text_size=size.normal, bgcolor=color.new(#2962FF, 50))
     table.merge_cells(panel, 0, 0, 1, 0)
 
     row = 1
@@ -945,17 +966,23 @@ if showInfoPanel
     table.cell(panel, 1, row, volTxt, text_color=volume > volMA * volMultiplier ? colBull : color.yellow, text_size=size.small)
     row += 1
 
-    // Volatilitet & Dynamisk TP
-    if useDynamicTP
+    // Volatilitet & Dynamiska Multiplar
+    if useDynamicTP or useDynamicSL
         volStatus = volRatio >= volThreshold ? "🔥 HÖG" : volRatio >= 1.0 ? "📊 NORMAL" : "🧊 LÅG"
         volColor = volRatio >= volThreshold ? color.orange : volRatio >= 1.0 ? color.yellow : color.aqua
         table.cell(panel, 0, row, "Volatilitet", text_color=color.white, text_size=size.small)
         table.cell(panel, 1, row, volStatus + " " + str.tostring(volRatio, "#.##"), text_color=volColor, text_size=size.small)
         row += 1
 
-        table.cell(panel, 0, row, "TP Multipel", text_color=color.white, text_size=size.small)
-        table.cell(panel, 1, row, str.tostring(dynamicTPMult, "#.#") + "x ATR", text_color=color.white, text_size=size.small)
-        row += 1
+        if useDynamicSL
+            table.cell(panel, 0, row, "SL Multipel", text_color=color.white, text_size=size.small)
+            table.cell(panel, 1, row, str.tostring(dynamicSLMult, "#.#") + "x ATR", text_color=color.new(colSL, 0), text_size=size.small)
+            row += 1
+
+        if useDynamicTP
+            table.cell(panel, 0, row, "TP Multipel", text_color=color.white, text_size=size.small)
+            table.cell(panel, 1, row, str.tostring(dynamicTPMult, "#.#") + "x ATR", text_color=color.new(colTP, 0), text_size=size.small)
+            row += 1
 
     // Separator
     table.cell(panel, 0, row, "═══════════", text_color=color.gray, text_size=size.small, bgcolor=color.new(color.gray, 85))
