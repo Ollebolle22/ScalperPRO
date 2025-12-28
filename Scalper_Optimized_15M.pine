@@ -572,8 +572,9 @@ if longCond and not in_position
         alert('{"code":"' + code + '","amountPerTrade":"' + str.tostring(entry_qty, "#.########") + '","amountPerTradeType":"quote"}', alert.freq_once_per_bar)
 
         if showTradeLabels
-            rr = (tp - close) / sl_dist
-            label.new(bar_index, low - atrValue * 2, "🟢 LONG\n💰 " + str.tostring(close, format.mintick) + "\n🛑 SL: " + str.tostring(safe_sl, format.mintick) + "\n🎯 TP: " + str.tostring(tp, format.mintick) + "\n📊 R:R " + str.tostring(rr, "#.#"),
+            first_tp = partial1_enabled ? partial_tp1_price : na
+            rr = not na(first_tp) ? (first_tp - close) / sl_dist : 0
+            label.new(bar_index, low - atrValue * 2, "🟢 LONG\n💰 " + str.tostring(close, format.mintick) + "\n🛑 SL: " + str.tostring(safe_sl, format.mintick) + (not na(first_tp) ? "\n📊 TP1: " + str.tostring(first_tp, format.mintick) : "") + (rr > 0 ? "\n📊 R:R " + str.tostring(rr, "#.#") : ""),
                  style=label.style_label_up, color=color.new(colBull, 10), textcolor=color.white, size=size.normal, yloc=yloc.price)
 
 // SHORT ENTRY
@@ -626,8 +627,9 @@ if shortCond and not in_position
         alert('{"code":"' + code + '","amountPerTrade":"' + str.tostring(entry_qty, "#.########") + '","amountPerTradeType":"quote"}', alert.freq_once_per_bar)
 
         if showTradeLabels
-            rr = (close - tp) / sl_dist
-            label.new(bar_index, high + atrValue * 2, "🔴 SHORT\n💰 " + str.tostring(close, format.mintick) + "\n🛑 SL: " + str.tostring(safe_sl, format.mintick) + "\n🎯 TP: " + str.tostring(tp, format.mintick) + "\n📊 R:R " + str.tostring(rr, "#.#"),
+            first_tp = partial1_enabled ? partial_tp1_price : na
+            rr = not na(first_tp) ? (close - first_tp) / sl_dist : 0
+            label.new(bar_index, high + atrValue * 2, "🔴 SHORT\n💰 " + str.tostring(close, format.mintick) + "\n🛑 SL: " + str.tostring(safe_sl, format.mintick) + (not na(first_tp) ? "\n📊 TP1: " + str.tostring(first_tp, format.mintick) : "") + (rr > 0 ? "\n📊 R:R " + str.tostring(rr, "#.#") : ""),
                  style=label.style_label_down, color=color.new(colBear, 10), textcolor=color.white, size=size.normal, yloc=yloc.price)
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -868,7 +870,7 @@ if in_position and not na(avg_entry) and not na(initial_sl_dist)
 // 🎯 EXITS
 // ══════════════════════════════════════════════════════════════════════════════
 
-if in_position and not na(stop_loss) and not na(take_profit)
+if in_position and not na(stop_loss)
     // SL only active when ALL DCA entries are complete (or DCA disabled)
     dca_complete = not use_dca or dca_count >= dca_max_entries
 
@@ -1085,11 +1087,6 @@ if showInfoPanel
             slTxt := slTxt + " 🔒"
         slCol := colSL
     table.cell(panel, 1, row, slTxt, text_color=slCol, text_size=size.small)
-    row += 1
-
-    // TP
-    table.cell(panel, 0, row, "Take Profit", text_color=color.white, text_size=size.small)
-    table.cell(panel, 1, row, in_position ? str.tostring(take_profit, format.mintick) : "—", text_color=colTP, text_size=size.small)
     row += 1
 
     // Multi-Level Partial TP Status
