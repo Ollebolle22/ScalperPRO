@@ -2,7 +2,7 @@
 // © Optimized Momentum Scalper - 15M Timeframe Specialist
 
 //@version=6
-strategy("⚡ Momentum Scalper PRO v12.0 [15M Optimized]",
+strategy("⚡ Momentum Scalper PRO v13.0 [15M Optimized]",
      overlay=true,
      pyramiding=5,
      calc_on_every_tick=false,
@@ -70,6 +70,7 @@ useADX = input.bool(true, "✓ Använd ADX Filter", group=grpADX, tooltip="KRITI
 adxLen = input.int(14, "ADX Length", group=grpADX)
 adxThreshold = input.int(22, "ADX Minimum", group=grpADX, tooltip="22+ = måttlig trend, 25+ = stark trend")
 adxStrong = input.int(32, "ADX Stark Trend", group=grpADX, tooltip="32+ = mycket stark trend")
+filterEMACrossWithADX = input.bool(true, "✓ ADX filter på EMA-korsning", group=grpADX, tooltip="v13.0: Filtrera även EMA-korsningar med ADX")
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 📊 MACD SETTINGS (JUSTERAD)
@@ -274,88 +275,35 @@ atrValue = ta.atr(atrLen)
 atrAvg = ta.sma(atrValue, volAvgLength)
 volRatio = atrValue / atrAvg  // Hur volatil är marknaden just nu?
 
-// 🛡️ DYNAMISK SL BERÄKNING (Volatilitetsbaserad)
-// Hög volatilitet → bredare SL (undvik stop-outs)
-// Låg volatilitet → tightare SL (bättre risk/reward)
-dynamicSLMult = if useDynamicSL
-    if volRatio >= volThreshold
-        slMaxMultiplier  // Hög volatilitet - använd bredare SL
-    else if volRatio <= 1.0
-        slBaseMultiplier  // Låg volatilitet - använd tightare SL
-    else
-        // Interpolera mellan base och max
-        vol_range = volThreshold - 1.0
-        progress = (volRatio - 1.0) / vol_range
-        slBaseMultiplier + (progress * (slMaxMultiplier - slBaseMultiplier))
-else
-    atrMultSL  // Fallback till fast SL
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🔧 HELPER FUNCTIONS (v13.0 improvement)
+// ═══════════════════════════════════════════════════════════════════════════════
 
-// 🔄 DYNAMISK DCA SPACING (Volatilitetsbaserad)
-// Hög volatilitet → bredare DCA spacing (undvik för tidig trigga)
-// Låg volatilitet → tätare DCA spacing (bättre avgpris)
-dynamicDCAMult = if useDynamicDCA
-    if volRatio >= volThreshold
-        dcaMaxMultiplier  // Hög volatilitet - bredare DCAs
-    else if volRatio <= 1.0
-        dcaBaseMultiplier  // Låg volatilitet - tätare DCAs
+// Interpolate between two values based on volatility ratio
+interpolate(lowVal, highVal, ratio, threshold) =>
+    if ratio >= threshold
+        highVal
+    else if ratio <= 1.0
+        lowVal
     else
-        // Interpolera mellan base och max
-        vol_range = volThreshold - 1.0
-        progress = (volRatio - 1.0) / vol_range
-        dcaBaseMultiplier + (progress * (dcaMaxMultiplier - dcaBaseMultiplier))
-else
-    dca_atr_mult  // Fallback till fast DCA spacing
+        progress = (ratio - 1.0) / (threshold - 1.0)
+        lowVal + (progress * (highVal - lowVal))
 
-// 📊 DYNAMISKA PARTIAL TP R-MULTIPLAR (Volatilitetsbaserade)
-// Hög volatilitet → lägre R-multiplar (TP träffas lättare)
-// Låg volatilitet → högre R-multiplar (mer vinst per TP)
-dynamicPartial1_R = if useDynamicPartialTP
-    if volRatio >= volThreshold
-        partial1_max_R  // Hög volatilitet - lägre R för att träffa lättare
-    else if volRatio <= 1.0
-        partial1_base_R  // Låg volatilitet - högre R för mer vinst
-    else
-        vol_range = volThreshold - 1.0
-        progress = (volRatio - 1.0) / vol_range
-        partial1_base_R + (progress * (partial1_max_R - partial1_base_R))
-else
-    partial1_trigger
+// ═══════════════════════════════════════════════════════════════════════════════
+// 📊 DYNAMISKA MULTIPLAR (using helper function)
+// ═══════════════════════════════════════════════════════════════════════════════
 
-dynamicPartial2_R = if useDynamicPartialTP
-    if volRatio >= volThreshold
-        partial2_max_R
-    else if volRatio <= 1.0
-        partial2_base_R
-    else
-        vol_range = volThreshold - 1.0
-        progress = (volRatio - 1.0) / vol_range
-        partial2_base_R + (progress * (partial2_max_R - partial2_base_R))
-else
-    partial2_trigger
+// Dynamic SL Multiplier (cleaner with helper function)
+dynamicSLMult = useDynamicSL ? interpolate(slBaseMultiplier, slMaxMultiplier, volRatio, volThreshold) : atrMultSL
 
-dynamicPartial3_R = if useDynamicPartialTP
-    if volRatio >= volThreshold
-        partial3_max_R
-    else if volRatio <= 1.0
-        partial3_base_R
-    else
-        vol_range = volThreshold - 1.0
-        progress = (volRatio - 1.0) / vol_range
-        partial3_base_R + (progress * (partial3_max_R - partial3_base_R))
-else
-    partial3_trigger
+// Dynamic DCA Spacing Multiplier
+dynamicDCAMult = useDynamicDCA ? interpolate(dcaBaseMultiplier, dcaMaxMultiplier, volRatio, volThreshold) : dca_atr_mult
 
-dynamicPartial4_R = if useDynamicPartialTP
-    if volRatio >= volThreshold
-        partial4_max_R
-    else if volRatio <= 1.0
-        partial4_base_R
-    else
-        vol_range = volThreshold - 1.0
-        progress = (volRatio - 1.0) / vol_range
-        partial4_base_R + (progress * (partial4_max_R - partial4_base_R))
-else
-    partial4_trigger
+// Dynamic Partial TP R-Multipliers
+dynamicPartial1_R = useDynamicPartialTP ? interpolate(partial1_base_R, partial1_max_R, volRatio, volThreshold) : partial1_trigger
+dynamicPartial2_R = useDynamicPartialTP ? interpolate(partial2_base_R, partial2_max_R, volRatio, volThreshold) : partial2_trigger
+dynamicPartial3_R = useDynamicPartialTP ? interpolate(partial3_base_R, partial3_max_R, volRatio, volThreshold) : partial3_trigger
+dynamicPartial4_R = useDynamicPartialTP ? interpolate(partial4_base_R, partial4_max_R, volRatio, volThreshold) : partial4_trigger
 
 // Volume
 volMA = ta.sma(volume, volLen)
@@ -443,8 +391,11 @@ trendAlignShort = not requireTrendAlignment or close < emaTrend
 strongBullMomentum = bullTrend and macdLongOK and close > close[1] and high > high[1]
 strongBearMomentum = bearTrend and macdShortOK and close < close[1] and low < low[1]
 
-longSignal = emaBullCross or (strongBullMomentum and adxCondition)
-shortSignal = emaBearCross or (strongBearMomentum and adxCondition)
+// v13.0: ADX filter on EMA crosses (optional)
+emaCrossADXOK = not filterEMACrossWithADX or adxCondition
+
+longSignal = (emaBullCross and emaCrossADXOK) or (strongBullMomentum and adxCondition)
+shortSignal = (emaBearCross and emaCrossADXOK) or (strongBearMomentum and adxCondition)
 
 longCond = longSignal and trendAlignLong and volCondition and inSession and notFirstBar and emaSpacingLong
 shortCond = shortSignal and trendAlignShort and volCondition and inSession and notFirstBar and emaSpacingShort
@@ -958,7 +909,7 @@ if showInfoPanel
     var table panel = table.new(position.top_right, 2, 35, bgcolor=color.new(#000000, 80), border_width=2, border_color=color.gray)
 
     // Header
-    table.cell(panel, 0, 0, "⚡ SCALPER v12.0 [15M]", text_color=color.white, text_size=size.normal, bgcolor=color.new(#2962FF, 50))
+    table.cell(panel, 0, 0, "⚡ SCALPER v13.0 [15M]", text_color=color.white, text_size=size.normal, bgcolor=color.new(#2962FF, 50))
     table.merge_cells(panel, 0, 0, 1, 0)
 
     row = 1
