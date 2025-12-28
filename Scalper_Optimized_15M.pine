@@ -2,7 +2,7 @@
 // © Optimized Momentum Scalper - 15M Timeframe Specialist
 
 //@version=6
-strategy("⚡ Momentum Scalper PRO v9.3 [15M Optimized]",
+strategy("⚡ Momentum Scalper PRO v10.0 [15M Optimized]",
      overlay=true,
      calc_on_every_tick=false,
      process_orders_on_close=true,
@@ -97,7 +97,14 @@ macdHistIncreasing = input.bool(false, "✓ Kräv ökande histogram", group=grpM
 grpRisk = "🎯 Risk Management [Enhanced]"
 atrLen = input.int(20, "ATR Length", group=grpRisk, tooltip="Ökat från 14 till 20 för 15min smoothing")
 atrMultSL = input.float(3.0, "ATR Multiplier Stop Loss", step=0.1, group=grpRisk, tooltip="3.0 ATR = bredare SL, färre stop-outs")
-atrMultTP = input.float(7.0, "ATR Multiplier Take Profit", step=0.5, group=grpRisk, tooltip="7.0 ATR = mycket bättre R:R (2.3:1)")
+
+// 🎯 DYNAMISK TAKE PROFIT (Volatilitetsbaserad)
+useDynamicTP = input.bool(true, "✓ Dynamisk Take Profit", group=grpRisk, tooltip="TP anpassas efter marknadsvolatilitet")
+tpBaseMultiplier = input.float(4.0, "📊 TP Base Multipel (låg vol)", step=0.5, group=grpRisk, tooltip="Minimum TP vid låg volatilitet")
+tpMaxMultiplier = input.float(8.0, "📊 TP Max Multipel (hög vol)", step=0.5, group=grpRisk, tooltip="Maximum TP vid hög volatilitet")
+volThreshold = input.float(1.3, "📈 Volatilitetströskel", step=0.1, group=grpRisk, tooltip="ATR/SMA(ATR) över detta = hög volatilitet")
+volAvgLength = input.int(50, "📊 Volatilitets Genomsnitt", step=5, group=grpRisk, tooltip="Period för att jämföra aktuell ATR")
+atrMultTP = input.float(7.0, "⚠️ Fallback TP Multipel", step=0.5, group=grpRisk, tooltip="Används endast om dynamisk TP är avstängd")
 
 // Partial Profit System (MULTI-LEVEL!)
 usePartialTP = input.bool(true, "✓ Partial Take Profit System", group=grpRisk, tooltip="Multi-level partial TP - ta vinst stegvis")
@@ -258,6 +265,27 @@ rsiValue = ta.rsi(rsiSource, rsiLen)
 
 // ATR
 atrValue = ta.atr(atrLen)
+
+// 🎯 DYNAMISK TP BERÄKNING (Volatilitetsbaserad)
+atrAvg = ta.sma(atrValue, volAvgLength)
+volRatio = atrValue / atrAvg  // Hur volatil är marknaden just nu?
+
+// Skala TP mellan base och max baserat på volatilitet
+// volRatio < 1.0 = Låg volatilitet → använd base
+// volRatio > volThreshold = Hög volatilitet → använd max
+// Däremellan = linjär interpolation
+dynamicTPMult = if useDynamicTP
+    if volRatio >= volThreshold
+        tpMaxMultiplier  // Hög volatilitet - använd max TP
+    else if volRatio <= 1.0
+        tpBaseMultiplier  // Låg volatilitet - använd base TP
+    else
+        // Interpolera mellan base och max
+        range = volThreshold - 1.0
+        progress = (volRatio - 1.0) / range
+        tpBaseMultiplier + (progress * (tpMaxMultiplier - tpBaseMultiplier))
+else
+    atrMultTP  // Fallback till fast TP
 
 // Volume
 volMA = ta.sma(volume, volLen)
@@ -439,7 +467,7 @@ if longCond and not in_position
 
     safe_sl = calc_safe_sl(close, raw_sl, true)
     sl_dist = close - safe_sl
-    tp = close + (atrValue * atrMultTP)
+    tp = close + (atrValue * dynamicTPMult)
     liq = calc_liq_price(close, true)
     sl_to_liq_pct = (safe_sl - liq) / close * 100
 
@@ -496,7 +524,7 @@ if shortCond and not in_position
 
     safe_sl = calc_safe_sl(close, raw_sl, false)
     sl_dist = safe_sl - close
-    tp = close - (atrValue * atrMultTP)
+    tp = close - (atrValue * dynamicTPMult)
     liq = calc_liq_price(close, false)
     sl_to_liq_pct = (liq - safe_sl) / close * 100
 
@@ -569,7 +597,7 @@ if use_dca and in_position and dca_count < dca_max_entries
                 avg_entry := new_avg
                 stop_loss := new_sl
                 liq_price := new_liq
-                take_profit := new_avg + (atrValue * atrMultTP)
+                take_profit := new_avg + (atrValue * dynamicTPMult)
 
                 // Uppdatera partial TP prices från nya avg_entry
                 new_sl_dist = new_avg - new_sl
@@ -599,7 +627,7 @@ if use_dca and in_position and dca_count < dca_max_entries
                 avg_entry := new_avg
                 stop_loss := new_sl
                 liq_price := new_liq
-                take_profit := new_avg - (atrValue * atrMultTP)
+                take_profit := new_avg - (atrValue * dynamicTPMult)
 
                 // Uppdatera partial TP prices från nya avg_entry
                 new_sl_dist = new_sl - new_avg
@@ -872,10 +900,10 @@ currentR = in_position and not na(avg_entry) and not na(initial_sl_dist) ? (is_l
 // ══════════════════════════════════════════════════════════════════════════════
 
 if showInfoPanel
-    var table panel = table.new(position.top_right, 2, 30, bgcolor=color.new(#000000, 80), border_width=2, border_color=color.gray)
+    var table panel = table.new(position.top_right, 2, 32, bgcolor=color.new(#000000, 80), border_width=2, border_color=color.gray)
 
     // Header
-    table.cell(panel, 0, 0, "⚡ SCALPER v9.3 [15M]", text_color=color.white, text_size=size.normal, bgcolor=color.new(#2962FF, 50))
+    table.cell(panel, 0, 0, "⚡ SCALPER v10.0 [15M]", text_color=color.white, text_size=size.normal, bgcolor=color.new(#2962FF, 50))
     table.merge_cells(panel, 0, 0, 1, 0)
 
     row = 1
@@ -916,6 +944,18 @@ if showInfoPanel
     table.cell(panel, 0, row, "Volume", text_color=color.white, text_size=size.small)
     table.cell(panel, 1, row, volTxt, text_color=volume > volMA * volMultiplier ? colBull : color.yellow, text_size=size.small)
     row += 1
+
+    // Volatilitet & Dynamisk TP
+    if useDynamicTP
+        volStatus = volRatio >= volThreshold ? "🔥 HÖG" : volRatio >= 1.0 ? "📊 NORMAL" : "🧊 LÅG"
+        volColor = volRatio >= volThreshold ? color.orange : volRatio >= 1.0 ? color.yellow : color.aqua
+        table.cell(panel, 0, row, "Volatilitet", text_color=color.white, text_size=size.small)
+        table.cell(panel, 1, row, volStatus + " " + str.tostring(volRatio, "#.##"), text_color=volColor, text_size=size.small)
+        row += 1
+
+        table.cell(panel, 0, row, "TP Multipel", text_color=color.white, text_size=size.small)
+        table.cell(panel, 1, row, str.tostring(dynamicTPMult, "#.#") + "x ATR", text_color=color.white, text_size=size.small)
+        row += 1
 
     // Separator
     table.cell(panel, 0, row, "═══════════", text_color=color.gray, text_size=size.small, bgcolor=color.new(color.gray, 85))
