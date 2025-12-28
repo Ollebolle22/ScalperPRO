@@ -4,6 +4,7 @@
 //@version=6
 strategy("⚡ Momentum Scalper PRO v10.1 [15M Optimized]",
      overlay=true,
+     pyramiding=5,
      calc_on_every_tick=false,
      process_orders_on_close=true,
      max_bars_back=500)
