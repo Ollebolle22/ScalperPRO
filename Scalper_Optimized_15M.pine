@@ -2,7 +2,7 @@
 // © Optimized Momentum Scalper - 15M Timeframe Specialist
 
 //@version=6
-strategy("⚡ Momentum Scalper PRO v11.0 [15M Optimized]",
+strategy("⚡ Momentum Scalper PRO v12.0 [15M Optimized]",
      overlay=true,
      pyramiding=5,
      calc_on_every_tick=false,
@@ -72,19 +72,6 @@ adxThreshold = input.int(22, "ADX Minimum", group=grpADX, tooltip="22+ = måttli
 adxStrong = input.int(32, "ADX Stark Trend", group=grpADX, tooltip="32+ = mycket stark trend")
 
 // ══════════════════════════════════════════════════════════════════════════════
-// 📉 RSI SETTINGS (STRIKTARE)
-// ══════════════════════════════════════════════════════════════════════════════
-
-grpRSI = "📉 RSI Settings [Tightened]"
-useRSI = input.bool(true, "✓ Använd RSI Filter", group=grpRSI, tooltip="HÅLL PÅ - viktigt filter")
-rsiLen = input.int(14, "RSI Length", group=grpRSI)
-rsiSource = input.source(close, "RSI Source", group=grpRSI)
-rsiLongMin = input.int(45, "RSI Long Min", group=grpRSI, tooltip="Ökat från 40 - kräv starkare momentum")
-rsiLongMax = input.int(65, "RSI Long Max", group=grpRSI, tooltip="Minskat från 70 - undvik overbought")
-rsiShortMin = input.int(35, "RSI Short Min", group=grpRSI, tooltip="Ökat från 30")
-rsiShortMax = input.int(55, "RSI Short Max", group=grpRSI, tooltip="Minskat från 60 - undvik oversold")
-
-// ══════════════════════════════════════════════════════════════════════════════
 // 📊 MACD SETTINGS (JUSTERAD)
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -110,13 +97,9 @@ slBaseMultiplier = input.float(2.5, "🛑 SL Base Multipel (låg vol)", step=0.1
 slMaxMultiplier = input.float(4.0, "🛑 SL Max Multipel (hög vol)", step=0.1, group=grpRisk, tooltip="Maximum SL vid hög volatilitet - bredare SL")
 atrMultSL = input.float(3.0, "⚠️ Fallback SL Multipel", step=0.1, group=grpRisk, tooltip="Används endast om dynamisk SL är avstängd")
 
-// 🎯 DYNAMISK TAKE PROFIT (Volatilitetsbaserad)
-useDynamicTP = input.bool(true, "✓ Dynamisk Take Profit", group=grpRisk, tooltip="TP anpassas efter marknadsvolatilitet")
-tpBaseMultiplier = input.float(4.0, "📊 TP Base Multipel (låg vol)", step=0.5, group=grpRisk, tooltip="Minimum TP vid låg volatilitet")
-tpMaxMultiplier = input.float(8.0, "📊 TP Max Multipel (hög vol)", step=0.5, group=grpRisk, tooltip="Maximum TP vid hög volatilitet")
+// 🎯 VOLATILITET (delad för alla dynamiska beräkningar)
 volThreshold = input.float(1.3, "📈 Volatilitetströskel", step=0.1, group=grpRisk, tooltip="ATR/SMA(ATR) över detta = hög volatilitet")
 volAvgLength = input.int(50, "📊 Volatilitets Genomsnitt", step=5, group=grpRisk, tooltip="Period för att jämföra aktuell ATR")
-atrMultTP = input.float(7.0, "⚠️ Fallback TP Multipel", step=0.5, group=grpRisk, tooltip="Används endast om dynamisk TP är avstängd")
 
 // Partial Profit System (MULTI-LEVEL!)
 usePartialTP = input.bool(true, "✓ Partial Take Profit System", group=grpRisk, tooltip="Multi-level partial TP - ta vinst stegvis")
@@ -265,11 +248,12 @@ colSlowEMA = input.color(#FF6D00, "Slow EMA", group=grpColors)
 colTrendEMA = input.color(#9C27B0, "Trend EMA", group=grpColors)
 colBull = input.color(#26A69A, "Bullish", group=grpColors)
 colBear = input.color(#EF5350, "Bearish", group=grpColors)
-colSL = input.color(#F23645, "Stop Loss", group=grpColors)
-colTP = input.color(#089981, "Take Profit", group=grpColors)
-colPartial = input.color(#FFA726, "Partial TP", group=grpColors)
-colLiq = input.color(#E040FB, "Liquidation", group=grpColors)
-colDCA = input.color(#FF9800, "DCA Levels", group=grpColors)
+colSL = input.color(#F23645, "🛑 Stop Loss", group=grpColors)
+colPartial = input.color(#FFA726, "📊 Partial TP (1-4)", group=grpColors)
+colLiq = input.color(#E040FB, "⚠️ Liquidation", group=grpColors)
+colDCA = input.color(#FF9800, "🔄 DCA Levels", group=grpColors)
+colUnitCost = input.color(#FFEB3B, "🏷️ Unit Cost (Avg Entry)", group=grpColors)
+colBreakeven = input.color(#2196F3, "⚖️ Breakeven", group=grpColors)
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 📐 INDICATORS
@@ -280,35 +264,15 @@ emaFast = ta.ema(emaSource, emaFastLen)
 emaSlow = ta.ema(emaSource, emaSlowLen)
 emaTrend = ta.ema(emaSource, emaTrendLen)
 
-// RSI
-rsiValue = ta.rsi(rsiSource, rsiLen)
-
 // MACD
 [macdLine, signalLine, histLine] = ta.macd(macdSource, macdFast, macdSlow, macdSignal)
 
 // ATR
 atrValue = ta.atr(atrLen)
 
-// 🎯 DYNAMISK TP BERÄKNING (Volatilitetsbaserad)
+// 🎯 VOLATILITETSBERÄKNING (för alla dynamiska system)
 atrAvg = ta.sma(atrValue, volAvgLength)
 volRatio = atrValue / atrAvg  // Hur volatil är marknaden just nu?
-
-// Skala TP mellan base och max baserat på volatilitet
-// volRatio < 1.0 = Låg volatilitet → använd base
-// volRatio > volThreshold = Hög volatilitet → använd max
-// Däremellan = linjär interpolation
-dynamicTPMult = if useDynamicTP
-    if volRatio >= volThreshold
-        tpMaxMultiplier  // Hög volatilitet - använd max TP
-    else if volRatio <= 1.0
-        tpBaseMultiplier  // Låg volatilitet - använd base TP
-    else
-        // Interpolera mellan base och max
-        vol_range = volThreshold - 1.0
-        progress = (volRatio - 1.0) / vol_range
-        tpBaseMultiplier + (progress * (tpMaxMultiplier - tpBaseMultiplier))
-else
-    atrMultTP  // Fallback till fast TP
 
 // 🛡️ DYNAMISK SL BERÄKNING (Volatilitetsbaserad)
 // Hög volatilitet → bredare SL (undvik stop-outs)
@@ -470,10 +434,6 @@ macdHistFalling = histLine < histLine[1]
 macdLongOK = not useMACD or (macdCrossUp and (not macdHistIncreasing or macdHistGrowing))
 macdShortOK = not useMACD or (macdCrossDown and (not macdHistIncreasing or macdHistFalling))
 
-// RSI Conditions
-rsiLongOK = not useRSI or (rsiValue >= rsiLongMin and rsiValue <= rsiLongMax)
-rsiShortOK = not useRSI or (rsiValue >= rsiShortMin and rsiValue <= rsiShortMax)
-
 // Trend Alignment
 trendAlignLong = not requireTrendAlignment or close > emaTrend
 trendAlignShort = not requireTrendAlignment or close < emaTrend
@@ -486,8 +446,8 @@ strongBearMomentum = bearTrend and macdShortOK and close < close[1] and low < lo
 longSignal = emaBullCross or (strongBullMomentum and adxCondition)
 shortSignal = emaBearCross or (strongBearMomentum and adxCondition)
 
-longCond = longSignal and rsiLongOK and trendAlignLong and volCondition and inSession and notFirstBar and emaSpacingLong
-shortCond = shortSignal and rsiShortOK and trendAlignShort and volCondition and inSession and notFirstBar and emaSpacingShort
+longCond = longSignal and trendAlignLong and volCondition and inSession and notFirstBar and emaSpacingLong
+shortCond = shortSignal and trendAlignShort and volCondition and inSession and notFirstBar and emaSpacingShort
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 💾 STATE VARIABLES
@@ -496,7 +456,6 @@ shortCond = shortSignal and rsiShortOK and trendAlignShort and volCondition and 
 var float entry_price = na
 var float avg_entry = na  // För interna SL/TP beräkningar
 var float stop_loss = na
-var float take_profit = na
 var float partial_tp1_price = na
 var float partial_tp2_price = na
 var float partial_tp3_price = na
@@ -524,7 +483,6 @@ if not in_position and (is_long[1] or is_short[1])
     entry_price := na
     avg_entry := na
     stop_loss := na
-    take_profit := na
     partial_tp1_price := na
     partial_tp2_price := na
     partial_tp3_price := na
@@ -573,7 +531,6 @@ if longCond and not in_position
 
     safe_sl = calc_safe_sl(close, raw_sl, true)
     sl_dist = close - safe_sl
-    tp = close + (atrValue * dynamicTPMult)
     liq = calc_liq_price(close, true)
     sl_to_liq_pct = (safe_sl - liq) / close * 100
 
@@ -581,7 +538,6 @@ if longCond and not in_position
         entry_price := close
         avg_entry := close
         stop_loss := safe_sl
-        take_profit := tp
 
         // Sätt partial TP prices baserat på dynamiska R-multiplar
         partial_tp1_price := partial1_enabled ? close + (sl_dist * dynamicPartial1_R) : na
@@ -630,7 +586,6 @@ if shortCond and not in_position
 
     safe_sl = calc_safe_sl(close, raw_sl, false)
     sl_dist = safe_sl - close
-    tp = close - (atrValue * dynamicTPMult)
     liq = calc_liq_price(close, false)
     sl_to_liq_pct = (liq - safe_sl) / close * 100
 
@@ -638,7 +593,6 @@ if shortCond and not in_position
         entry_price := close
         avg_entry := close
         stop_loss := safe_sl
-        take_profit := tp
 
         // Sätt partial TP prices baserat på dynamiska R-multiplar
         partial_tp1_price := partial1_enabled ? close - (sl_dist * dynamicPartial1_R) : na
@@ -703,7 +657,6 @@ if use_dca and in_position and dca_count < dca_max_entries
                 avg_entry := new_avg
                 stop_loss := new_sl
                 liq_price := new_liq
-                take_profit := new_avg + (atrValue * dynamicTPMult)
 
                 // Uppdatera partial TP prices från nya avg_entry (dynamiska R-multiplar)
                 new_sl_dist = new_avg - new_sl
@@ -733,7 +686,6 @@ if use_dca and in_position and dca_count < dca_max_entries
                 avg_entry := new_avg
                 stop_loss := new_sl
                 liq_price := new_liq
-                take_profit := new_avg - (atrValue * dynamicTPMult)
 
                 // Uppdatera partial TP prices från nya avg_entry (dynamiska R-multiplar)
                 new_sl_dist = new_sl - new_avg
@@ -924,19 +876,15 @@ if in_position and not na(stop_loss) and not na(take_profit)
 
     if is_long
         if dca_complete
-            // All DCAs done - use both SL and TP
-            strategy.exit("Exit Long", "Long", stop=stop_loss, limit=take_profit, comment_profit="TP✓", comment_loss="SL✗")
-        else
-            // DCAs still pending - only use TP, NO SL
-            strategy.exit("Exit Long", "Long", limit=take_profit, comment_profit="TP✓")
+            // All DCAs done - use SL (partial TPs handle profit taking)
+            strategy.exit("Exit Long", "Long", stop=stop_loss, comment_loss="SL✗")
+        // DCAs still pending - no SL, only partial TPs
 
     if is_short
         if dca_complete
-            // All DCAs done - use both SL and TP
-            strategy.exit("Exit Short", "Short", stop=stop_loss, limit=take_profit, comment_profit="TP✓", comment_loss="SL✗")
-        else
-            // DCAs still pending - only use TP, NO SL
-            strategy.exit("Exit Short", "Short", limit=take_profit, comment_profit="TP✓")
+            // All DCAs done - use SL (partial TPs handle profit taking)
+            strategy.exit("Exit Short", "Short", stop=stop_loss, comment_loss="SL✗")
+        // DCAs still pending - no SL, only partial TPs
 
 // Exit alerts
 if strategy.position_size == 0 and strategy.position_size[1] > 0
@@ -959,28 +907,27 @@ pTrend = plot(showEMAs ? emaTrend : na, "Trend EMA", colTrendEMA, 3)
 // EMA Fill
 fill(pFast, pSlow, emaFast > emaSlow ? color.new(colBull, 90) : color.new(colBear, 90))
 
-// SL/TP Lines (SL only shown when all DCAs complete)
+// SL Line (only shown when all DCAs complete)
 sl_active = in_position and (not use_dca or dca_count >= dca_max_entries)
-plot(showSLTP and sl_active ? stop_loss : na, "SL", colSL, 2, plot.style_linebr)
-plot(showSLTP and in_position ? take_profit : na, "TP", colTP, 2, plot.style_linebr)
+plot(showSLTP and sl_active ? stop_loss : na, "🛑 Stop Loss", colSL, 2, plot.style_linebr)
 
 // UNIT COST LINE - visar EXAKT inköpspris (från TradingView)
-plot(in_position ? strategy.position_avg_price : na, "🏷️ Unit Cost", color.new(color.yellow, 0), 2, plot.style_line)
+plot(in_position ? strategy.position_avg_price : na, "🏷️ Unit Cost (Avg Entry)", colUnitCost, 2, plot.style_line)
 
 // Multi-Level Partial TP Lines
-plot(showPartialTP and in_position and partial1_enabled and not partial1_taken ? partial_tp1_price : na, "Partial TP1", colPartial, 1, plot.style_circles)
-plot(showPartialTP and in_position and partial2_enabled and not partial2_taken ? partial_tp2_price : na, "Partial TP2", colPartial, 1, plot.style_circles)
-plot(showPartialTP and in_position and partial3_enabled and not partial3_taken ? partial_tp3_price : na, "Partial TP3", colPartial, 1, plot.style_circles)
-plot(showPartialTP and in_position and partial4_enabled and not partial4_taken ? partial_tp4_price : na, "Partial TP4", colPartial, 1, plot.style_circles)
+plot(showPartialTP and in_position and partial1_enabled and not partial1_taken ? partial_tp1_price : na, "📊 Partial TP1", colPartial, 1, plot.style_circles)
+plot(showPartialTP and in_position and partial2_enabled and not partial2_taken ? partial_tp2_price : na, "📊 Partial TP2", colPartial, 1, plot.style_circles)
+plot(showPartialTP and in_position and partial3_enabled and not partial3_taken ? partial_tp3_price : na, "📊 Partial TP3", colPartial, 1, plot.style_circles)
+plot(showPartialTP and in_position and partial4_enabled and not partial4_taken ? partial_tp4_price : na, "📊 Partial TP4", colPartial, 1, plot.style_circles)
 
-plot(showLiqLine and in_position ? liq_price : na, "Liq", colLiq, 2, plot.style_linebr)
+plot(showLiqLine and in_position ? liq_price : na, "⚠️ Liquidation", colLiq, 2, plot.style_linebr)
 
 // Breakeven Line
-plot(showBreakeven and in_position and breakeven_moved ? avg_entry : na, "Breakeven", color.new(color.blue, 30), 1, plot.style_circles)
+plot(showBreakeven and in_position and breakeven_moved ? avg_entry : na, "⚖️ Breakeven", colBreakeven, 1, plot.style_circles)
 
 // DCA levels (använder entry_price, inte avg_entry)
 dca1 = showDCALevels and use_dca and in_position and dca_count < dca_max_entries ? calc_dca_trigger(entry_price, is_long, dca_count) : na
-plot(dca1, "Next DCA", color.new(colDCA, 40), 2, plot.style_cross)
+plot(dca1, "🔄 Next DCA Level", colDCA, 2, plot.style_cross)
 
 // Background för ADX
 bgcolor(useADX and adxValue < 20 ? color.new(color.red, 95) : na, title="Weak Trend Warning")
@@ -1009,7 +956,7 @@ if showInfoPanel
     var table panel = table.new(position.top_right, 2, 35, bgcolor=color.new(#000000, 80), border_width=2, border_color=color.gray)
 
     // Header
-    table.cell(panel, 0, 0, "⚡ SCALPER v11.0 [15M]", text_color=color.white, text_size=size.normal, bgcolor=color.new(#2962FF, 50))
+    table.cell(panel, 0, 0, "⚡ SCALPER v12.0 [15M]", text_color=color.white, text_size=size.normal, bgcolor=color.new(#2962FF, 50))
     table.merge_cells(panel, 0, 0, 1, 0)
 
     row = 1
@@ -1033,12 +980,6 @@ if showInfoPanel
     table.cell(panel, 1, row, str.tostring(adxValue, "#.#") + " " + adxTxt, text_color=adxCol, text_size=size.small)
     row += 1
 
-    // RSI
-    rsiCol = rsiValue > 65 ? colBear : rsiValue < 35 ? colBull : color.white
-    table.cell(panel, 0, row, "RSI", text_color=color.white, text_size=size.small)
-    table.cell(panel, 1, row, str.tostring(rsiValue, "#.#"), text_color=rsiCol, text_size=size.small)
-    row += 1
-
     // MACD
     macdTxt = macdLine > signalLine ? "🟢" : "🔴"
     table.cell(panel, 0, row, "MACD", text_color=color.white, text_size=size.small)
@@ -1051,23 +992,17 @@ if showInfoPanel
     table.cell(panel, 1, row, volTxt, text_color=volume > volMA * volMultiplier ? colBull : color.yellow, text_size=size.small)
     row += 1
 
-    // Volatilitet & Dynamiska Multiplar
-    if useDynamicTP or useDynamicSL
-        volStatus = volRatio >= volThreshold ? "🔥 HÖG" : volRatio >= 1.0 ? "📊 NORMAL" : "🧊 LÅG"
-        volColor = volRatio >= volThreshold ? color.orange : volRatio >= 1.0 ? color.yellow : color.aqua
-        table.cell(panel, 0, row, "Volatilitet", text_color=color.white, text_size=size.small)
-        table.cell(panel, 1, row, volStatus + " " + str.tostring(volRatio, "#.##"), text_color=volColor, text_size=size.small)
+    // 🎯 Volatilitet & Dynamiska Multiplar
+    volStatus = volRatio >= volThreshold ? "🔥 HÖG" : volRatio >= 1.0 ? "📊 NORMAL" : "🧊 LÅG"
+    volColor = volRatio >= volThreshold ? color.orange : volRatio >= 1.0 ? color.yellow : color.aqua
+    table.cell(panel, 0, row, "Volatilitet", text_color=color.white, text_size=size.small)
+    table.cell(panel, 1, row, volStatus + " " + str.tostring(volRatio, "#.##"), text_color=volColor, text_size=size.small)
+    row += 1
+
+    if useDynamicSL
+        table.cell(panel, 0, row, "SL Multipel", text_color=color.white, text_size=size.small)
+        table.cell(panel, 1, row, str.tostring(dynamicSLMult, "#.#") + "x ATR", text_color=color.new(colSL, 0), text_size=size.small)
         row += 1
-
-        if useDynamicSL
-            table.cell(panel, 0, row, "SL Multipel", text_color=color.white, text_size=size.small)
-            table.cell(panel, 1, row, str.tostring(dynamicSLMult, "#.#") + "x ATR", text_color=color.new(colSL, 0), text_size=size.small)
-            row += 1
-
-        if useDynamicTP
-            table.cell(panel, 0, row, "TP Multipel", text_color=color.white, text_size=size.small)
-            table.cell(panel, 1, row, str.tostring(dynamicTPMult, "#.#") + "x ATR", text_color=color.new(colTP, 0), text_size=size.small)
-            row += 1
 
     // 🔄 Dynamisk DCA Spacing
     if useDynamicDCA
