@@ -1,8 +1,8 @@
 // This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
-// © Optimized Momentum Scalper - 15M Timeframe Specialist
+// © Optimized Momentum Scalper - 4H Swing Trading Specialist
 
 //@version=6
-strategy("⚡ Momentum Scalper PRO v13.0 [15M Optimized]",
+strategy("⚡ Momentum Scalper PRO v13.0 [4H Swing Optimized]",
      overlay=true,
      pyramiding=5,
      calc_on_every_tick=false,
@@ -37,39 +37,39 @@ use_dynamic_sizing = input.bool(true, "✓ Dynamic Position Sizing", group=grpCa
 grpDCA = "🔄 DCA (Dollar Cost Average)"
 use_dca = input.bool(true, "✓ Aktivera DCA", group=grpDCA, tooltip="Lägg till position vid drawdown - NU MED BÄTTRE KONTROLL")
 dca_max_entries = input.int(2, "Max DCA entries", group=grpDCA, tooltip="Reducerat från 5 till 2 för bättre risk management")
-dca_mode = input.string("ATR Smart", "DCA Trigger-läge", options=["ATR Smart", "Fixed %"], group=grpDCA, tooltip="ATR Smart rekommenderas för 15min")
+dca_mode = input.string("ATR Smart", "DCA Trigger-läge", options=["ATR Smart", "Fixed %"], group=grpDCA, tooltip="ATR Smart rekommenderas för 4H swing trading")
 
 // 🔄 DYNAMISK DCA SPACING (Volatilitetsbaserad)
 useDynamicDCA = input.bool(true, "✓ Dynamisk DCA Spacing", group=grpDCA, tooltip="DCA-avstånd anpassas efter volatilitet")
-dcaBaseMultiplier = input.float(2.0, "🔄 DCA Base Multipel (låg vol)", step=0.25, group=grpDCA, tooltip="Minimum DCA-spacing vid låg volatilitet - tätare DCAs")
-dcaMaxMultiplier = input.float(4.0, "🔄 DCA Max Multipel (hög vol)", step=0.25, group=grpDCA, tooltip="Maximum DCA-spacing vid hög volatilitet - bredare DCAs")
-dca_atr_mult = input.float(2.5, "⚠️ Fallback ATR Multiplikator", step=0.25, group=grpDCA, tooltip="Används endast om dynamisk DCA är avstängd")
+dcaBaseMultiplier = input.float(2.5, "🔄 DCA Base Multipel (låg vol)", step=0.25, group=grpDCA, tooltip="4H: Bredare spacing för större swings - tätare DCAs vid låg vol")
+dcaMaxMultiplier = input.float(5.0, "🔄 DCA Max Multipel (hög vol)", step=0.25, group=grpDCA, tooltip="4H: Maximum DCA-spacing vid hög volatilitet")
+dca_atr_mult = input.float(3.0, "⚠️ Fallback ATR Multiplikator", step=0.25, group=grpDCA, tooltip="4H: 3.0× ATR fallback för större swings")
 
-dca_fixed_pct = input.float(4.0, "Fixed % avstånd", step=0.5, group=grpDCA, tooltip="Ökat från 3% till 4% för 15min volatilitet")
+dca_fixed_pct = input.float(5.0, "Fixed % avstånd", step=0.5, group=grpDCA, tooltip="4H: 5% för större swings (fallback om ATR Smart är av)")
 dca_size_mult = input.float(1.3, "Storlek multiplikator", step=0.1, group=grpDCA, tooltip="Reducerat från 1.5 för säkrare DCA")
 require_trend_for_dca = input.bool(true, "✓ Kräv fortsatt trend för DCA", group=grpDCA, tooltip="NYT: Tillåt bara DCA om trenden håller i sig")
 
 // ══════════════════════════════════════════════════════════════════════════════
-// 📈 TREND SETTINGS (OPTIMERADE FÖR 15MIN)
+// 📈 TREND SETTINGS (OPTIMERADE FÖR 4H SWING TRADING)
 // ══════════════════════════════════════════════════════════════════════════════
 
-grpTrend = "📈 Trend Settings [15M Optimized]"
-emaFastLen = input.int(21, "Fast EMA Length", group=grpTrend, tooltip="Ökat från 12 till 21 för 15min - minskar whipsaws")
-emaSlowLen = input.int(50, "Slow EMA Length", group=grpTrend, tooltip="Ökat från 26 till 50 för tydligare crossovers")
-emaTrendLen = input.int(100, "Trend EMA Length", group=grpTrend, tooltip="Ökat från 50 till 100 för stark trend filter")
+grpTrend = "📈 Trend Settings [4H Swing Optimized]"
+emaFastLen = input.int(12, "Fast EMA Length", group=grpTrend, tooltip="4H: 12 EMA för snabb trend detection")
+emaSlowLen = input.int(26, "Slow EMA Length", group=grpTrend, tooltip="4H: 26 EMA - klassisk MACD-baserad")
+emaTrendLen = input.int(50, "Trend EMA Length", group=grpTrend, tooltip="4H: 50 EMA för huvudtrend filter")
 emaSource = input.source(close, "EMA Source", group=grpTrend)
 requireTrendAlignment = input.bool(true, "✓ Kräv trend-alignment", group=grpTrend, tooltip="STARKT REKOMMENDERAT - filtrera mot trenden")
-emaSpacing = input.float(0.15, "Min EMA-spacing %", step=0.05, group=grpTrend, tooltip="Kräv att EMAs är separerade - 0.15% = mildare, 0.3% = striktare")
+emaSpacing = input.float(0.2, "Min EMA-spacing %", step=0.05, group=grpTrend, tooltip="4H: 0.2% spacing - tydligare separation än 15min")
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 💪 ADX TREND STRENGTH (NYTT!)
 // ══════════════════════════════════════════════════════════════════════════════
 
-grpADX = "💪 ADX Trend Strength [NYT!]"
-useADX = input.bool(true, "✓ Använd ADX Filter", group=grpADX, tooltip="KRITISKT - filtrera svaga trender")
+grpADX = "💪 ADX Trend Strength [4H Optimized]"
+useADX = input.bool(true, "✓ Använd ADX Filter", group=grpADX, tooltip="KRITISKT för 4H - kräv riktig trend")
 adxLen = input.int(14, "ADX Length", group=grpADX)
-adxThreshold = input.int(22, "ADX Minimum", group=grpADX, tooltip="22+ = måttlig trend, 25+ = stark trend")
-adxStrong = input.int(32, "ADX Stark Trend", group=grpADX, tooltip="32+ = mycket stark trend")
+adxThreshold = input.int(25, "ADX Minimum", group=grpADX, tooltip="4H: 25+ krävs för kvalitetsentry")
+adxStrong = input.int(35, "ADX Stark Trend", group=grpADX, tooltip="4H: 35+ = mycket stark trend")
 filterEMACrossWithADX = input.bool(true, "✓ ADX filter på EMA-korsning", group=grpADX, tooltip="v13.0: Filtrera även EMA-korsningar med ADX")
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -90,7 +90,7 @@ macdHistIncreasing = input.bool(false, "✓ Kräv ökande histogram", group=grpM
 // ══════════════════════════════════════════════════════════════════════════════
 
 grpRisk = "🎯 Risk Management [Enhanced]"
-atrLen = input.int(20, "ATR Length", group=grpRisk, tooltip="Ökat från 14 till 20 för 15min smoothing")
+atrLen = input.int(14, "ATR Length", group=grpRisk, tooltip="4H: 14 för snabbare volatilitetsanpassning")
 
 // 🛡️ DYNAMISK STOP LOSS (Volatilitetsbaserad)
 useDynamicSL = input.bool(true, "✓ Dynamisk Stop Loss", group=grpRisk, tooltip="SL anpassas efter marknadsvolatilitet")
@@ -112,39 +112,39 @@ useDynamicPartialTP = input.bool(true, "✓ Dynamiska Partial TP R-multiplar", g
 // Partial TP Level 1
 partial1_enabled = numPartialLevels >= 1
 partial1_pct = input.float(25.0, "📊 TP1: % av position", step=5.0, group=grpRisk, tooltip="Procent att sälja vid första TP")
-partial1_base_R = input.float(1.2, "📊 TP1: Base R (låg vol)", step=0.25, group=grpRisk, tooltip="TP1 R-multipel vid låg volatilitet")
-partial1_max_R = input.float(2.0, "📊 TP1: Max R (hög vol)", step=0.25, group=grpRisk, tooltip="TP1 R-multipel vid hög volatilitet")
-partial1_trigger = input.float(1.5, "⚠️ TP1: Fallback R", step=0.25, group=grpRisk, tooltip="Används om dynamisk TP är av")
+partial1_base_R = input.float(1.5, "📊 TP1: Base R (låg vol)", step=0.25, group=grpRisk, tooltip="4H: TP1 R-multipel vid låg volatilitet")
+partial1_max_R = input.float(2.5, "📊 TP1: Max R (hög vol)", step=0.25, group=grpRisk, tooltip="4H: TP1 R-multipel vid hög volatilitet")
+partial1_trigger = input.float(2.0, "⚠️ TP1: Fallback R", step=0.25, group=grpRisk, tooltip="4H: Fallback för större swings")
 
 // Partial TP Level 2
 partial2_enabled = numPartialLevels >= 2
 partial2_pct = input.float(25.0, "📊 TP2: % av position", step=5.0, group=grpRisk, tooltip="Procent att sälja vid andra TP")
-partial2_base_R = input.float(2.0, "📊 TP2: Base R (låg vol)", step=0.25, group=grpRisk, tooltip="TP2 R-multipel vid låg volatilitet")
-partial2_max_R = input.float(3.5, "📊 TP2: Max R (hög vol)", step=0.25, group=grpRisk, tooltip="TP2 R-multipel vid hög volatilitet")
-partial2_trigger = input.float(2.5, "⚠️ TP2: Fallback R", step=0.25, group=grpRisk, tooltip="Används om dynamisk TP är av")
+partial2_base_R = input.float(2.5, "📊 TP2: Base R (låg vol)", step=0.25, group=grpRisk, tooltip="4H: TP2 R-multipel vid låg volatilitet")
+partial2_max_R = input.float(4.0, "📊 TP2: Max R (hög vol)", step=0.25, group=grpRisk, tooltip="4H: TP2 R-multipel vid hög volatilitet")
+partial2_trigger = input.float(3.0, "⚠️ TP2: Fallback R", step=0.25, group=grpRisk, tooltip="4H: Fallback för större swings")
 
 // Partial TP Level 3
 partial3_enabled = numPartialLevels >= 3
 partial3_pct = input.float(25.0, "📊 TP3: % av position", step=5.0, group=grpRisk, tooltip="Procent att sälja vid tredje TP")
-partial3_base_R = input.float(2.8, "📊 TP3: Base R (låg vol)", step=0.25, group=grpRisk, tooltip="TP3 R-multipel vid låg volatilitet")
-partial3_max_R = input.float(5.0, "📊 TP3: Max R (hög vol)", step=0.25, group=grpRisk, tooltip="TP3 R-multipel vid hög volatilitet")
-partial3_trigger = input.float(3.5, "⚠️ TP3: Fallback R", step=0.25, group=grpRisk, tooltip="Används om dynamisk TP är av")
+partial3_base_R = input.float(3.5, "📊 TP3: Base R (låg vol)", step=0.25, group=grpRisk, tooltip="4H: TP3 R-multipel vid låg volatilitet")
+partial3_max_R = input.float(6.0, "📊 TP3: Max R (hög vol)", step=0.25, group=grpRisk, tooltip="4H: TP3 R-multipel vid hög volatilitet")
+partial3_trigger = input.float(4.5, "⚠️ TP3: Fallback R", step=0.25, group=grpRisk, tooltip="4H: Fallback för större swings")
 
 // Partial TP Level 4
 partial4_enabled = numPartialLevels >= 4
 partial4_pct = input.float(25.0, "📊 TP4: % av position", step=5.0, group=grpRisk, tooltip="Procent att sälja vid fjärde TP")
-partial4_base_R = input.float(4.0, "📊 TP4: Base R (låg vol)", step=0.25, group=grpRisk, tooltip="TP4 R-multipel vid låg volatilitet")
-partial4_max_R = input.float(7.0, "📊 TP4: Max R (hög vol)", step=0.25, group=grpRisk, tooltip="TP4 R-multipel vid hög volatilitet")
-partial4_trigger = input.float(5.0, "⚠️ TP4: Fallback R", step=0.25, group=grpRisk, tooltip="Används om dynamisk TP är av")
+partial4_base_R = input.float(5.0, "📊 TP4: Base R (låg vol)", step=0.25, group=grpRisk, tooltip="4H: TP4 R-multipel vid låg volatilitet")
+partial4_max_R = input.float(8.5, "📊 TP4: Max R (hög vol)", step=0.25, group=grpRisk, tooltip="4H: TP4 R-multipel vid hög volatilitet")
+partial4_trigger = input.float(6.5, "⚠️ TP4: Fallback R", step=0.25, group=grpRisk, tooltip="4H: Fallback för större swings")
 
 // Trailing Stop (FIXAD!)
 useTrailingStop = input.bool(true, "✓ Use Trailing Stop", group=grpRisk, tooltip="FIXAD implementation")
-trailActivation = input.float(2.0, "Trail Activation (R)", step=0.25, group=grpRisk, tooltip="NYT: Aktivera trailing vid 2R vinst")
-trailOffset = input.float(1.2, "Trailing Stop ATR Mult", step=0.1, group=grpRisk, tooltip="Minskat från 1.5 - tightare trailing")
+trailActivation = input.float(2.5, "Trail Activation (R)", step=0.25, group=grpRisk, tooltip="4H: Aktivera trailing vid 2.5R för större swings")
+trailOffset = input.float(1.5, "Trailing Stop ATR Mult", step=0.1, group=grpRisk, tooltip="4H: Bredare trailing för att ge swing mer rum")
 
 // Breakeven
-useBreakeven = input.bool(true, "✓ Flytta SL till breakeven", group=grpRisk, tooltip="Rekommenderat för 15min")
-breakevenTrigger = input.float(1.2, "Breakeven vid R-multipel", step=0.1, group=grpRisk, tooltip="Ökat från 1.0 till 1.2")
+useBreakeven = input.bool(true, "✓ Flytta SL till breakeven", group=grpRisk, tooltip="Rekommenderat för 4H swing trading")
+breakevenTrigger = input.float(1.5, "Breakeven vid R-multipel", step=0.1, group=grpRisk, tooltip="4H: Ökat till 1.5R för större swings")
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════════════
 // 📖 SÅ FUNGERAR STOP LOSS I DENNA STRATEGI - LÄS DETTA!
@@ -203,7 +203,7 @@ breakevenTrigger = input.float(1.2, "Breakeven vid R-multipel", step=0.1, group=
 grpVol = "📦 Volume Filter [Tightened]"
 useVolFilter = input.bool(true, "✓ Use Volume Filter", group=grpVol, tooltip="KRITISKT - filtrera låg volym")
 volMultiplier = input.float(1.4, "Volume Multiplier", step=0.1, group=grpVol, tooltip="1.4x = volym måste vara 40% över genomsnitt")
-volLen = input.int(24, "Volume MA Length", group=grpVol, tooltip="24 bars = 6 timmar på 15min")
+volLen = input.int(24, "Volume MA Length", group=grpVol, tooltip="4H: 24 bars = ~4 dagar för volymgenomsnitt")
 volIncreasing = input.bool(false, "✓ Kräv ökande volym", group=grpVol, tooltip="Extra strikt filter - kan aktiveras för ännu färre trades")
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -211,9 +211,9 @@ volIncreasing = input.bool(false, "✓ Kräv ökande volym", group=grpVol, toolt
 // ══════════════════════════════════════════════════════════════════════════════
 
 grpSession = "⏰ Session Filter"
-useSessionFilter = input.bool(true, "✓ Use Session Filter", group=grpSession, tooltip="REKOMMENDERAT för 15min - handla rätt timmar")
-sessionStart = input.session("0800-2200", "Trading Session", group=grpSession, tooltip="08-22 CET rekommenderas (undvik natt)")
-avoidFirstBar = input.bool(true, "✓ Undvik första bar i session", group=grpSession, tooltip="NYT: Undvik entry första 15min")
+useSessionFilter = input.bool(true, "✓ Use Session Filter", group=grpSession, tooltip="4H: Mindre kritiskt än 15min, men filtrerar fortfarande nattliga bars")
+sessionStart = input.session("0800-2200", "Trading Session", group=grpSession, tooltip="08-22 CET - undvik nattliga 4H bars")
+avoidFirstBar = input.bool(true, "✓ Undvik första bar i session", group=grpSession, tooltip="4H: Undvik entry på första 4H bar")
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 🤖 BOT CONFIG
@@ -223,7 +223,7 @@ grpBot = "🤖 Bot Config"
 bot_id = input.string("b5b6069f87e87df334c11c36", "🤖 Bot ID", group=grpBot)
 exchange_name = input.string("HyperLiquid", "Exchange", options=["HyperLiquid", "Binance", "Bybit", "OKX"], group=grpBot)
 pair_name = input.string("SOL-USDC", "Trading Pair", group=grpBot)
-strategy_name_bot = input.string("SOL_15M", "Strategy Name", group=grpBot)
+strategy_name_bot = input.string("SOL_4H", "Strategy Name", group=grpBot)
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 🖥️ DISPLAY SETTINGS
@@ -466,7 +466,7 @@ calc_dca_qty(base, dca_num) =>
     base * math.pow(dca_size_mult, dca_num - 1)
 
 get_bot_code(action) =>
-    action + "_" + exchange_name + "_" + pair_name + "_" + strategy_name_bot + "_15M_" + bot_id
+    action + "_" + exchange_name + "_" + pair_name + "_" + strategy_name_bot + "_4H_" + bot_id
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 🚀 ENTRIES
@@ -909,7 +909,7 @@ if showInfoPanel
     var table panel = table.new(position.top_right, 2, 35, bgcolor=color.new(#000000, 80), border_width=2, border_color=color.gray)
 
     // Header
-    table.cell(panel, 0, 0, "⚡ SCALPER v13.0 [15M]", text_color=color.white, text_size=size.normal, bgcolor=color.new(#2962FF, 50))
+    table.cell(panel, 0, 0, "⚡ SCALPER v13.0 [4H]", text_color=color.white, text_size=size.normal, bgcolor=color.new(#2962FF, 50))
     table.merge_cells(panel, 0, 0, 1, 0)
 
     row = 1
