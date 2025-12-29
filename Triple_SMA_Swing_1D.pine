@@ -192,9 +192,21 @@ var bool partial1_executed = false
 var bool partial2_executed = false
 var bool partial3_executed = false
 var bool breakeven_moved = false
+var int lastEntryBar = -999  // Track bar index of last entry to prevent re-entry too soon
+var bool enteredThisBar = false  // Track if we entered on current bar
 
-// Entry
-if longCond and strategy.position_size == 0
+// Track if we just entered this bar
+enteredThisBar := false
+
+// Track previous position state to detect position closure
+wasInPosition = strategy.position_size[1] != 0
+justClosed = wasInPosition and strategy.position_size == 0
+
+// Prevent re-entry on the same bar where position closed OR within 1 bar of last entry
+canEnter = strategy.position_size == 0 and not justClosed and (bar_index - lastEntryBar) > 1
+
+// Entry Logic - Only ONE position at a time, with proper spacing
+if longCond and canEnter
     entryPrice := close
     stopLoss := entryPrice - stopDistance
     riskR := stopDistance
@@ -203,8 +215,10 @@ if longCond and strategy.position_size == 0
     partial2_executed := false
     partial3_executed := false
     breakeven_moved := false
+    lastEntryBar := bar_index
+    enteredThisBar := true
 
-if shortCond and strategy.position_size == 0
+if shortCond and canEnter
     entryPrice := close
     stopLoss := entryPrice + stopDistance
     riskR := stopDistance
@@ -213,6 +227,8 @@ if shortCond and strategy.position_size == 0
     partial2_executed := false
     partial3_executed := false
     breakeven_moved := false
+    lastEntryBar := bar_index
+    enteredThisBar := true
 
 // Track position state
 inLong = strategy.position_size > 0
@@ -302,16 +318,12 @@ plot(showSMAs ? sma200 : na, "SMA 200", color=color.new(#F44336, 0), linewidth=3
 bgcolor(showSMAs and bullishAlignment ? color.new(color.green, 95) : na, title="Bullish Alignment")
 bgcolor(showSMAs and bearishAlignment ? color.new(color.red, 95) : na, title="Bearish Alignment")
 
-// Plot Entry Signals
-plotshape(longCond, "Long Entry", shape.triangleup, location.belowbar, color.new(color.green, 0), size=size.small)
-plotshape(shortCond, "Short Entry", shape.triangledown, location.abovebar, color.new(color.red, 0), size=size.small)
-
 // ══════════════════════════════════════════════════════════════════════════════
-// 🏷️ TRADE LABELS
+// 🏷️ TRADE LABELS - Only show when actual entry happens
 // ══════════════════════════════════════════════════════════════════════════════
 
-if showLabels
-    if longCond
+if showLabels and enteredThisBar
+    if longCond and canEnter
         label.new(bar_index, low,
              text="🔵 LONG\nEntry: " + str.tostring(close, format.mintick) +
                   "\nSL: " + str.tostring(stopLoss, format.mintick) +
@@ -321,7 +333,7 @@ if showLabels
              textcolor=color.white,
              size=size.small)
 
-    if shortCond
+    if shortCond and canEnter
         label.new(bar_index, high,
              text="🔴 SHORT\nEntry: " + str.tostring(close, format.mintick) +
                   "\nSL: " + str.tostring(stopLoss, format.mintick) +
