@@ -1,0 +1,463 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Triple SMA Swing Pro - 1D Timeframe Specialist
+
+//@version=6
+strategy("📈 Triple SMA Swing PRO v1.0 [1D]",
+     overlay=true,
+     pyramiding=1,
+     calc_on_every_tick=false,
+     process_orders_on_close=true,
+     max_bars_back=500)
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 📊 STRATEGY CONCEPT
+// ══════════════════════════════════════════════════════════════════════════════
+// Triple SMA Pullback Strategy - Institutional Grade Setup
+//
+// ENTRY LOGIC:
+// - LONG: När alla SMAs är bullish alignade (20 > 99 > 200)
+//         OCH pris gör pullback till SMA 20 och bouncar
+// - SHORT: När alla SMAs är bearish alignade (20 < 99 < 200)
+//          OCH pris gör pullback till SMA 20 och rejectas
+//
+// VARFÖR DETTA FUNGERAR:
+// ✅ Handlar MED huvudtrenden (alla SMAs alignade)
+// ✅ Köper på pullback = bättre risk/reward än breakout
+// ✅ SMA 20 bounce = naturlig entry trigger
+// ✅ 1D timeframe = färre falska signaler, större moves
+// ✅ 2-8 trades/månad = kvalitet över kvantitet
+//
+// TARGET: 3-5R genomsnitt per trade, 60-70% win rate
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ⚙️ CORE SETTINGS
+// ══════════════════════════════════════════════════════════════════════════════
+
+grpSMA = "📊 Triple SMA Settings"
+sma20_len = input.int(20, "SMA 20 (Trend Entry)", group=grpSMA, tooltip="Kortsiktig trend - entry zone vid pullback")
+sma99_len = input.int(99, "SMA 99 (Trend Confirmation)", group=grpSMA, tooltip="Medellång trend - confirmation filter")
+sma200_len = input.int(200, "SMA 200 (Major Trend)", group=grpSMA, tooltip="Långsiktig trend - major trend filter")
+requireAllAligned = input.bool(true, "✓ Kräv perfekt SMA alignment", group=grpSMA, tooltip="REKOMMENDERAT - handla bara när alla 3 SMAs är alignade")
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 🎯 ENTRY SETTINGS
+// ══════════════════════════════════════════════════════════════════════════════
+
+grpEntry = "🎯 Entry Logic"
+pullbackBars = input.int(3, "Pullback lookback bars", minval=1, maxval=10, group=grpEntry, tooltip="Hur många bars tillbaka ska vi leta efter pullback till SMA 20?")
+requireBounce = input.bool(true, "✓ Kräv bounce confirmation", group=grpEntry, tooltip="REKOMMENDERAT - vänta på close över/under SMA 20")
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 💪 TREND STRENGTH FILTERS
+// ══════════════════════════════════════════════════════════════════════════════
+
+grpADX = "💪 Trend Strength (ADX)"
+useADX = input.bool(true, "✓ Använd ADX Filter", group=grpADX, tooltip="Filtrera svaga trender")
+adxLen = input.int(14, "ADX Length", group=grpADX)
+adxThreshold = input.int(20, "ADX Minimum", group=grpADX, tooltip="20+ = trend finns, 25+ = stark trend")
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 📦 VOLUME FILTER
+// ══════════════════════════════════════════════════════════════════════════════
+
+grpVol = "📦 Volume Filter"
+useVolFilter = input.bool(true, "✓ Use Volume Filter", group=grpVol, tooltip="Kräv volym över genomsnitt")
+volMultiplier = input.float(1.2, "Volume Multiplier", step=0.1, group=grpVol, tooltip="1.2x = volym måste vara 20% över genomsnitt")
+volLen = input.int(20, "Volume SMA Length", group=grpVol, tooltip="Beräkna genomsnittlig volym över 20 bars")
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 🎯 RISK MANAGEMENT
+// ══════════════════════════════════════════════════════════════════════════════
+
+grpRisk = "🎯 Risk Management"
+atrLen = input.int(14, "ATR Length", group=grpRisk, tooltip="För dynamisk SL/TP beräkning")
+atrMultSL = input.float(2.0, "Stop Loss ATR Multipel", step=0.1, group=grpRisk, tooltip="2.0× ATR = bredare SL för 1D swings")
+riskPercent = input.float(1.0, "Risk % per trade", step=0.1, group=grpRisk, tooltip="Procent av kontot att riskera per trade")
+
+// 📊 PARTIAL TAKE PROFIT SYSTEM
+usePartialTP = input.bool(true, "✓ Partial Take Profit System", group=grpRisk, tooltip="Multi-level partial TP")
+numPartialLevels = input.int(3, "Antal Partial TP Nivåer", minval=0, maxval=3, step=1, group=grpRisk, tooltip="1-3 partial TP nivåer")
+
+// Partial TP Level 1
+partial1_enabled = numPartialLevels >= 1
+partial1_pct = input.float(30.0, "📊 TP1: % av position", step=5.0, group=grpRisk, tooltip="Procent att sälja vid första TP")
+partial1_R = input.float(1.5, "📊 TP1: R-multipel", step=0.25, group=grpRisk, tooltip="1.5R för första partial TP")
+
+// Partial TP Level 2
+partial2_enabled = numPartialLevels >= 2
+partial2_pct = input.float(30.0, "📊 TP2: % av position", step=5.0, group=grpRisk, tooltip="Procent att sälja vid andra TP")
+partial2_R = input.float(2.5, "📊 TP2: R-multipel", step=0.25, group=grpRisk, tooltip="2.5R för andra partial TP")
+
+// Partial TP Level 3
+partial3_enabled = numPartialLevels >= 3
+partial3_pct = input.float(40.0, "📊 TP3: % av position", step=5.0, group=grpRisk, tooltip="Resterande position vid tredje TP")
+partial3_R = input.float(4.0, "📊 TP3: R-multipel", step=0.25, group=grpRisk, tooltip="4.0R för tredje partial TP - låt vinnare springa!")
+
+// Trailing Stop
+useTrailingStop = input.bool(true, "✓ Use Trailing Stop", group=grpRisk, tooltip="Aktivera trailing stop")
+trailActivation = input.float(2.5, "Trail Activation (R)", step=0.25, group=grpRisk, tooltip="Aktivera trailing vid 2.5R vinst")
+trailOffset = input.float(1.5, "Trailing Stop ATR Mult", step=0.1, group=grpRisk, tooltip="1.5× ATR trailing offset")
+
+// Breakeven
+useBreakeven = input.bool(true, "✓ Flytta SL till breakeven", group=grpRisk, tooltip="Lås in breakeven vid vinst")
+breakevenTrigger = input.float(1.5, "Breakeven vid R-multipel", step=0.1, group=grpRisk, tooltip="Flytta SL till breakeven vid 1.5R")
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 🎨 DISPLAY SETTINGS
+// ══════════════════════════════════════════════════════════════════════════════
+
+grpDisplay = "🎨 Display Settings"
+showSMAs = input.bool(true, "✓ Visa SMAs", group=grpDisplay)
+showInfoPanel = input.bool(true, "✓ Visa Info Panel", group=grpDisplay)
+showLabels = input.bool(true, "✓ Visa Trade Labels", group=grpDisplay)
+showTP = input.bool(true, "✓ Visa TP Nivåer", group=grpDisplay)
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 📈 CALCULATIONS
+// ══════════════════════════════════════════════════════════════════════════════
+
+// SMAs
+sma20 = ta.sma(close, sma20_len)
+sma99 = ta.sma(close, sma99_len)
+sma200 = ta.sma(close, sma200_len)
+
+// ATR for SL/TP
+atr = ta.atr(atrLen)
+
+// ADX
+[diPlus, diMinus, adx] = ta.dmi(adxLen, adxLen)
+adxCondition = not useADX or adx > adxThreshold
+
+// Volume
+volAvg = ta.sma(volume, volLen)
+volCondition = not useVolFilter or volume > volAvg * volMultiplier
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 🎯 ENTRY LOGIC - PULLBACK TO TREND
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Trend Alignment Filters
+bullishAlignment = sma20 > sma99 and sma99 > sma200
+bearishAlignment = sma20 < sma99 and sma99 < sma200
+
+trendAlignedBull = not requireAllAligned or bullishAlignment
+trendAlignedBear = not requireAllAligned or bearishAlignment
+
+// Pullback Detection
+// LONG: Leta efter bars där pris har closat UNDER SMA 20 (pullback phase)
+// Sen vänta på bounce = close ÖVER SMA 20
+hadPullbackLong = false
+for i = 1 to pullbackBars
+    if close[i] < sma20[i]
+        hadPullbackLong := true
+        break
+
+// SHORT: Leta för bars där pris har closat ÖVER SMA 20
+// Sen vänta på rejection = close UNDER SMA 20
+hadPullbackShort = false
+for i = 1 to pullbackBars
+    if close[i] > sma20[i]
+        hadPullbackShort := true
+        break
+
+// Bounce Confirmation
+bounceLong = close > sma20  // Current bar closed above SMA 20 = bounce confirmed
+bounceShort = close < sma20 // Current bar closed below SMA 20 = rejection confirmed
+
+pullbackCondLong = not requireBounce or (hadPullbackLong and bounceLong)
+pullbackCondShort = not requireBounce or (hadPullbackShort and bounceShort)
+
+// Final Entry Conditions
+longCond = trendAlignedBull and pullbackCondLong and adxCondition and volCondition
+shortCond = trendAlignedBear and pullbackCondShort and adxCondition and volCondition
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 🚀 POSITION SIZING
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Calculate position size based on risk
+stopDistance = atr * atrMultSL
+riskAmount = strategy.equity * (riskPercent / 100)
+posSize = riskAmount / stopDistance
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 💼 TRADE EXECUTION
+// ══════════════════════════════════════════════════════════════════════════════
+
+var float entryPrice = na
+var float stopLoss = na
+var float riskR = na
+var bool partial1_executed = false
+var bool partial2_executed = false
+var bool partial3_executed = false
+var bool breakeven_moved = false
+
+// Entry
+if longCond and strategy.position_size == 0
+    entryPrice := close
+    stopLoss := entryPrice - stopDistance
+    riskR := stopDistance
+    strategy.entry("LONG", strategy.long, qty=posSize)
+    partial1_executed := false
+    partial2_executed := false
+    partial3_executed := false
+    breakeven_moved := false
+
+if shortCond and strategy.position_size == 0
+    entryPrice := close
+    stopLoss := entryPrice + stopDistance
+    riskR := stopDistance
+    strategy.entry("SHORT", strategy.short, qty=posSize)
+    partial1_executed := false
+    partial2_executed := false
+    partial3_executed := false
+    breakeven_moved := false
+
+// Track position state
+inLong = strategy.position_size > 0
+inShort = strategy.position_size < 0
+inPosition = inLong or inShort
+
+// Calculate current P&L in R-multiples
+currentR = 0.0
+if inPosition and not na(entryPrice) and not na(riskR) and riskR > 0
+    if inLong
+        currentR := (close - entryPrice) / riskR
+    else if inShort
+        currentR := (entryPrice - close) / riskR
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 🎯 PARTIAL TAKE PROFIT EXECUTION
+// ══════════════════════════════════════════════════════════════════════════════
+
+if usePartialTP and inPosition and not na(currentR)
+
+    // Partial TP 1
+    if partial1_enabled and not partial1_executed and currentR >= partial1_R
+        closeQty = strategy.position_size * (partial1_pct / 100.0)
+        if inLong
+            strategy.close("LONG", qty=math.abs(closeQty), comment="TP1 @" + str.tostring(partial1_R) + "R")
+        else
+            strategy.close("SHORT", qty=math.abs(closeQty), comment="TP1 @" + str.tostring(partial1_R) + "R")
+        partial1_executed := true
+
+    // Partial TP 2
+    if partial2_enabled and not partial2_executed and currentR >= partial2_R
+        closeQty = strategy.position_size * (partial2_pct / 100.0)
+        if inLong
+            strategy.close("LONG", qty=math.abs(closeQty), comment="TP2 @" + str.tostring(partial2_R) + "R")
+        else
+            strategy.close("SHORT", qty=math.abs(closeQty), comment="TP2 @" + str.tostring(partial2_R) + "R")
+        partial2_executed := true
+
+    // Partial TP 3
+    if partial3_enabled and not partial3_executed and currentR >= partial3_R
+        if inLong
+            strategy.close("LONG", comment="TP3 @" + str.tostring(partial3_R) + "R")
+        else
+            strategy.close("SHORT", comment="TP3 @" + str.tostring(partial3_R) + "R")
+        partial3_executed := true
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 🛡️ STOP LOSS & BREAKEVEN
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Move to Breakeven
+if useBreakeven and inPosition and not breakeven_moved and not na(currentR)
+    if currentR >= breakevenTrigger
+        stopLoss := entryPrice
+        breakeven_moved := true
+
+// Trailing Stop
+if useTrailingStop and inPosition and not na(currentR)
+    if currentR >= trailActivation
+        trailDist = atr * trailOffset
+        if inLong
+            newSL = close - trailDist
+            if newSL > stopLoss
+                stopLoss := newSL
+        else if inShort
+            newSL = close + trailDist
+            if newSL < stopLoss
+                stopLoss := newSL
+
+// Execute Stop Loss
+if inLong and not na(stopLoss)
+    strategy.exit("SL", "LONG", stop=stopLoss)
+
+if inShort and not na(stopLoss)
+    strategy.exit("SL", "SHORT", stop=stopLoss)
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 🎨 PLOTTING
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Plot SMAs
+plot(showSMAs ? sma20 : na, "SMA 20", color=color.new(#2196F3, 0), linewidth=2)
+plot(showSMAs ? sma99 : na, "SMA 99", color=color.new(#FF9800, 0), linewidth=2)
+plot(showSMAs ? sma200 : na, "SMA 200", color=color.new(#F44336, 0), linewidth=3)
+
+// Background color for trend alignment
+bgcolor(showSMAs and bullishAlignment ? color.new(color.green, 95) : na, title="Bullish Alignment")
+bgcolor(showSMAs and bearishAlignment ? color.new(color.red, 95) : na, title="Bearish Alignment")
+
+// Plot Entry Signals
+plotshape(longCond, "Long Entry", shape.triangleup, location.belowbar, color.new(color.green, 0), size=size.small)
+plotshape(shortCond, "Short Entry", shape.triangledown, location.abovebar, color.new(color.red, 0), size=size.small)
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 🏷️ TRADE LABELS
+// ══════════════════════════════════════════════════════════════════════════════
+
+if showLabels
+    if longCond
+        label.new(bar_index, low,
+             text="🔵 LONG\nEntry: " + str.tostring(close, format.mintick) +
+                  "\nSL: " + str.tostring(stopLoss, format.mintick) +
+                  "\nR: " + str.tostring(riskR, "#.##"),
+             style=label.style_label_up,
+             color=color.new(color.green, 20),
+             textcolor=color.white,
+             size=size.small)
+
+    if shortCond
+        label.new(bar_index, high,
+             text="🔴 SHORT\nEntry: " + str.tostring(close, format.mintick) +
+                  "\nSL: " + str.tostring(stopLoss, format.mintick) +
+                  "\nR: " + str.tostring(riskR, "#.##"),
+             style=label.style_label_down,
+             color=color.new(color.red, 20),
+             textcolor=color.white,
+             size=size.small)
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 📊 INFO PANEL
+// ══════════════════════════════════════════════════════════════════════════════
+
+if showInfoPanel
+    var table panel = table.new(position.top_right, 2, 25, bgcolor=color.new(#000000, 80), border_width=2, border_color=color.gray)
+
+    // Header
+    table.cell(panel, 0, 0, "📈 TRIPLE SMA v1.0 [1D]", text_color=color.white, text_size=size.normal, bgcolor=color.new(#2962FF, 50))
+    table.merge_cells(panel, 0, 0, 1, 0)
+
+    row = 1
+
+    // Trend Status
+    table.cell(panel, 0, row, "TREND:", text_color=color.gray, text_size=size.small)
+    trendText = bullishAlignment ? "🟢 BULLISH" : bearishAlignment ? "🔴 BEARISH" : "⚪ NEUTRAL"
+    trendColor = bullishAlignment ? color.green : bearishAlignment ? color.red : color.gray
+    table.cell(panel, 1, row, trendText, text_color=trendColor, text_size=size.small)
+    row += 1
+
+    // SMAs
+    table.cell(panel, 0, row, "SMA 20:", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, str.tostring(sma20, "#.##"), text_color=color.white, text_size=size.small)
+    row += 1
+
+    table.cell(panel, 0, row, "SMA 99:", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, str.tostring(sma99, "#.##"), text_color=color.white, text_size=size.small)
+    row += 1
+
+    table.cell(panel, 0, row, "SMA 200:", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, str.tostring(sma200, "#.##"), text_color=color.white, text_size=size.small)
+    row += 1
+
+    // Divider
+    table.cell(panel, 0, row, "─────────────", text_color=color.gray, text_size=size.small)
+    table.merge_cells(panel, 0, row, 1, row)
+    row += 1
+
+    // Position Info
+    table.cell(panel, 0, row, "POSITION:", text_color=color.gray, text_size=size.small)
+    posText = inLong ? "🟢 LONG" : inShort ? "🔴 SHORT" : "─"
+    table.cell(panel, 1, row, posText, text_color=color.white, text_size=size.small)
+    row += 1
+
+    if inPosition
+        table.cell(panel, 0, row, "Entry:", text_color=color.gray, text_size=size.small)
+        table.cell(panel, 1, row, str.tostring(entryPrice, "#.##"), text_color=color.white, text_size=size.small)
+        row += 1
+
+        table.cell(panel, 0, row, "Current R:", text_color=color.gray, text_size=size.small)
+        rColor = currentR > 0 ? color.green : currentR < 0 ? color.red : color.gray
+        table.cell(panel, 1, row, str.tostring(currentR, "#.##") + "R", text_color=rColor, text_size=size.small)
+        row += 1
+
+        table.cell(panel, 0, row, "Stop Loss:", text_color=color.gray, text_size=size.small)
+        table.cell(panel, 1, row, str.tostring(stopLoss, "#.##"), text_color=color.red, text_size=size.small)
+        row += 1
+
+    // Divider
+    table.cell(panel, 0, row, "─────────────", text_color=color.gray, text_size=size.small)
+    table.merge_cells(panel, 0, row, 1, row)
+    row += 1
+
+    // Filters
+    table.cell(panel, 0, row, "ADX:", text_color=color.gray, text_size=size.small)
+    adxColor = adx > adxThreshold ? color.green : color.red
+    table.cell(panel, 1, row, str.tostring(adx, "#.#"), text_color=adxColor, text_size=size.small)
+    row += 1
+
+    table.cell(panel, 0, row, "Volume:", text_color=color.gray, text_size=size.small)
+    volRatio = volume / volAvg
+    volColor = volRatio > volMultiplier ? color.green : color.red
+    table.cell(panel, 1, row, str.tostring(volRatio, "#.##") + "x", text_color=volColor, text_size=size.small)
+    row += 1
+
+    table.cell(panel, 0, row, "ATR:", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, str.tostring(atr, "#.##"), text_color=color.white, text_size=size.small)
+    row += 1
+
+    // Divider
+    table.cell(panel, 0, row, "─────────────", text_color=color.gray, text_size=size.small)
+    table.merge_cells(panel, 0, row, 1, row)
+    row += 1
+
+    // Partial TP Status
+    if inPosition and usePartialTP
+        table.cell(panel, 0, row, "TP STATUS:", text_color=color.yellow, text_size=size.small)
+        table.merge_cells(panel, 0, row, 1, row)
+        row += 1
+
+        if partial1_enabled
+            tp1Status = partial1_executed ? "✅" : currentR >= partial1_R * 0.8 ? "🟡" : "⚪"
+            table.cell(panel, 0, row, "TP1 (" + str.tostring(partial1_R) + "R):", text_color=color.gray, text_size=size.small)
+            table.cell(panel, 1, row, tp1Status, text_color=color.white, text_size=size.small)
+            row += 1
+
+        if partial2_enabled
+            tp2Status = partial2_executed ? "✅" : currentR >= partial2_R * 0.8 ? "🟡" : "⚪"
+            table.cell(panel, 0, row, "TP2 (" + str.tostring(partial2_R) + "R):", text_color=color.gray, text_size=size.small)
+            table.cell(panel, 1, row, tp2Status, text_color=color.white, text_size=size.small)
+            row += 1
+
+        if partial3_enabled
+            tp3Status = partial3_executed ? "✅" : currentR >= partial3_R * 0.8 ? "🟡" : "⚪"
+            table.cell(panel, 0, row, "TP3 (" + str.tostring(partial3_R) + "R):", text_color=color.gray, text_size=size.small)
+            table.cell(panel, 1, row, tp3Status, text_color=color.white, text_size=size.small)
+            row += 1
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 🎯 PLOT TP LEVELS
+// ══════════════════════════════════════════════════════════════════════════════
+
+if showTP and inPosition and not na(entryPrice) and not na(riskR)
+    if inLong
+        tp1_price = entryPrice + (riskR * partial1_R)
+        tp2_price = entryPrice + (riskR * partial2_R)
+        tp3_price = entryPrice + (riskR * partial3_R)
+
+        line.new(bar_index[1], tp1_price, bar_index, tp1_price, color=color.new(color.green, 50), style=line.style_dashed, width=1)
+        line.new(bar_index[1], tp2_price, bar_index, tp2_price, color=color.new(color.green, 30), style=line.style_dashed, width=1)
+        line.new(bar_index[1], tp3_price, bar_index, tp3_price, color=color.new(color.green, 10), style=line.style_dashed, width=2)
+
+    else if inShort
+        tp1_price = entryPrice - (riskR * partial1_R)
+        tp2_price = entryPrice - (riskR * partial2_R)
+        tp3_price = entryPrice - (riskR * partial3_R)
+
+        line.new(bar_index[1], tp1_price, bar_index, tp1_price, color=color.new(color.green, 50), style=line.style_dashed, width=1)
+        line.new(bar_index[1], tp2_price, bar_index, tp2_price, color=color.new(color.green, 30), style=line.style_dashed, width=1)
+        line.new(bar_index[1], tp3_price, bar_index, tp3_price, color=color.new(color.green, 10), style=line.style_dashed, width=2)
