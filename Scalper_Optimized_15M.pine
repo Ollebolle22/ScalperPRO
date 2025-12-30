@@ -429,6 +429,10 @@ var float trail_low = na
 
 in_position = strategy.position_size != 0
 
+// Track if exit alert was sent this bar (prevents double alerts from partial TP + exit logic)
+var bool exit_alert_sent_this_bar = false
+exit_alert_sent_this_bar := false  // Reset each bar
+
 // Reset på flat
 if not in_position and (is_long[1] or is_short[1])
     entry_price := na
@@ -466,7 +470,7 @@ calc_dca_qty(base, dca_num) =>
     base * math.pow(dca_size_mult, dca_num - 1)
 
 get_bot_code(action) =>
-    action + "_" + exchange_name + "_" + pair_name + "_" + strategy_name_bot + "_4H_" + bot_id
+    action + "_" + exchange_name + "_" + pair_name + "_" + strategy_name_bot + "_" + bot_id
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 🚀 ENTRIES
@@ -672,6 +676,7 @@ if in_position and not na(liq_price)
         strategy.close_all(comment="⚠️LIQ")
 
         alert('{"code":"' + code + '","amountPerTrade":"' + str.tostring(math.abs(strategy.position_size), "#.########") + '","amountPerTradeType":"quote"}', alert.freq_once_per_bar)
+        exit_alert_sent_this_bar := true  // Mark that exit alert was sent
 
         if showTradeLabels
             label.new(bar_index, is_long ? (low - atrValue * 2.5) : (high + atrValue * 2.5), "⚠️ NÖDSTOPP!\n🚨 För nära likvidation\n📉 " + str.tostring(dist_to_liq, "#.#") + "% till liq",
@@ -695,6 +700,7 @@ if usePartialTP and partial1_enabled and in_position and not partial1_taken and 
             strategy.close("Short", qty=math.abs(partial_qty), comment="TP1")
 
         alert('{"code":"' + code + '","amountPerTrade":"' + str.tostring(math.abs(partial_qty), "#.########") + '","amountPerTradeType":"quote"}', alert.freq_once_per_bar)
+        exit_alert_sent_this_bar := true  // Mark that exit alert was sent
 
         partial1_taken := true
 
@@ -717,6 +723,7 @@ if usePartialTP and partial2_enabled and in_position and not partial2_taken and 
             strategy.close("Short", qty=math.abs(partial_qty), comment="TP2")
 
         alert('{"code":"' + code + '","amountPerTrade":"' + str.tostring(math.abs(partial_qty), "#.########") + '","amountPerTradeType":"quote"}', alert.freq_once_per_bar)
+        exit_alert_sent_this_bar := true  // Mark that exit alert was sent
 
         partial2_taken := true
 
@@ -739,6 +746,7 @@ if usePartialTP and partial3_enabled and in_position and not partial3_taken and 
             strategy.close("Short", qty=math.abs(partial_qty), comment="TP3")
 
         alert('{"code":"' + code + '","amountPerTrade":"' + str.tostring(math.abs(partial_qty), "#.########") + '","amountPerTradeType":"quote"}', alert.freq_once_per_bar)
+        exit_alert_sent_this_bar := true  // Mark that exit alert was sent
 
         partial3_taken := true
 
@@ -761,6 +769,7 @@ if usePartialTP and partial4_enabled and in_position and not partial4_taken and 
             strategy.close("Short", qty=math.abs(partial_qty), comment="TP4")
 
         alert('{"code":"' + code + '","amountPerTrade":"' + str.tostring(math.abs(partial_qty), "#.########") + '","amountPerTradeType":"quote"}', alert.freq_once_per_bar)
+        exit_alert_sent_this_bar := true  // Mark that exit alert was sent
 
         partial4_taken := true
 
@@ -839,14 +848,16 @@ if in_position and not na(stop_loss)
             strategy.exit("Exit Short", "Short", stop=stop_loss, comment_loss="SL✗")
         // DCAs still pending - no SL, only partial TPs
 
-// Exit alerts
-if strategy.position_size == 0 and strategy.position_size[1] > 0
+// Exit alerts - only send if not already sent this bar (prevents double alerts from partial TP + exit)
+if strategy.position_size == 0 and strategy.position_size[1] > 0 and not exit_alert_sent_this_bar
     code = get_bot_code("EXIT-LONG")
     alert('{"code":"' + code + '","amountPerTrade":"' + str.tostring(math.abs(strategy.position_size[1]), "#.########") + '","amountPerTradeType":"quote"}', alert.freq_once_per_bar)
+    exit_alert_sent_this_bar := true
 
-if strategy.position_size == 0 and strategy.position_size[1] < 0
+if strategy.position_size == 0 and strategy.position_size[1] < 0 and not exit_alert_sent_this_bar
     code = get_bot_code("EXIT-SHORT")
     alert('{"code":"' + code + '","amountPerTrade":"' + str.tostring(math.abs(strategy.position_size[1]), "#.########") + '","amountPerTradeType":"quote"}', alert.freq_once_per_bar)
+    exit_alert_sent_this_bar := true
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 🎨 VISUALS
@@ -1116,9 +1127,18 @@ if showInfoPanel
     table.cell(panel, 1, row, "$" + str.tostring(strategy.netprofit, "#"), text_color=netCol, text_size=size.small)
 
 // ══════════════════════════════════════════════════════════════════════════════
-// 🔔 ALERT CONDITIONS
+// 🔔 ALERT SYSTEM - WunderTrading Compatible
 // ══════════════════════════════════════════════════════════════════════════════
-
-alertcondition(longCond, title="🟢 Long Signal", message='{"type":"LONG","price":"{{close}}"}')
-alertcondition(shortCond, title="🔴 Short Signal", message='{"type":"SHORT","price":"{{close}}"}')
-alertcondition(longCond or shortCond, title="⚡ Any Entry", message='{"type":"ENTRY","price":"{{close}}"}')
+//
+// Alla alerts skickas via alert() function calls för WunderTrading integration
+// Använd "alert function calls only" när du skapar alert i TradingView
+//
+// Alert format: {"code":"ACTION_EXCHANGE_PAIR_STRATEGY_15M_BOTID","amountPerTrade":"X","amountPerTradeType":"quote"}
+//
+// Alerts som skickas:
+// - ENTER-LONG/SHORT: Vid initial entry
+// - ENTER-LONG/SHORT: Vid varje DCA entry
+// - EXIT-LONG/SHORT: Vid varje partial TP (med specifik quantity)
+// - EXIT-LONG/SHORT: Vid full position close (SL, liquidation, eller sista partial)
+//
+// ══════════════════════════════════════════════════════════════════════════════
