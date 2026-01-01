@@ -940,8 +940,16 @@ fill(pFast, pSlow, emaFast > emaSlow ? color.new(colBull, 90) : color.new(colBea
 sl_active = in_position and (not use_dca or dca_count >= dca_max_entries)
 plot(showSLTP and sl_active ? stop_loss : na, "🛑 Stop Loss", colSL, 2, plot.style_linebr)
 
+// SL Inline Text
+if showSLTP and sl_active and bar_index % 20 == 0
+    label.new(bar_index, stop_loss, "SL", style=label.style_none, textcolor=colSL, size=size.small, yloc=yloc.price)
+
 // UNIT COST LINE - visar EXAKT inköpspris (från TradingView)
 plot(in_position ? strategy.position_avg_price : na, "🏷️ Unit Cost (Avg Entry)", colUnitCost, 2, plot.style_line)
+
+// Unit Cost Inline Text
+if in_position and bar_index % 20 == 0
+    label.new(bar_index, strategy.position_avg_price, "Avg Entry", style=label.style_none, textcolor=colUnitCost, size=size.small, yloc=yloc.price)
 
 // Multi-Level Partial TP Lines
 plot(showPartialTP and in_position and partial1_enabled and not partial1_taken ? partial_tp1_price : na, "📊 Partial TP1", colPartial, 1, plot.style_circles)
@@ -949,21 +957,44 @@ plot(showPartialTP and in_position and partial2_enabled and not partial2_taken ?
 plot(showPartialTP and in_position and partial3_enabled and not partial3_taken ? partial_tp3_price : na, "📊 Partial TP3", colPartial, 1, plot.style_circles)
 plot(showPartialTP and in_position and partial4_enabled and not partial4_taken ? partial_tp4_price : na, "📊 Partial TP4", colPartial, 1, plot.style_circles)
 
+// Partial TP Inline Text
+if showPartialTP and in_position and bar_index % 20 == 0
+    if partial1_enabled and not partial1_taken and not na(partial_tp1_price)
+        label.new(bar_index, partial_tp1_price, "TP1", style=label.style_none, textcolor=colPartial, size=size.small, yloc=yloc.price)
+    if partial2_enabled and not partial2_taken and not na(partial_tp2_price)
+        label.new(bar_index, partial_tp2_price, "TP2", style=label.style_none, textcolor=colPartial, size=size.small, yloc=yloc.price)
+    if partial3_enabled and not partial3_taken and not na(partial_tp3_price)
+        label.new(bar_index, partial_tp3_price, "TP3", style=label.style_none, textcolor=colPartial, size=size.small, yloc=yloc.price)
+    if partial4_enabled and not partial4_taken and not na(partial_tp4_price)
+        label.new(bar_index, partial_tp4_price, "TP4", style=label.style_none, textcolor=colPartial, size=size.small, yloc=yloc.price)
+
 plot(showLiqLine and in_position ? liq_price : na, "⚠️ Liquidation", colLiq, 2, plot.style_linebr)
+
+// Liquidation Inline Text
+if showLiqLine and in_position and bar_index % 20 == 0
+    label.new(bar_index, liq_price, "Liq", style=label.style_none, textcolor=colLiq, size=size.small, yloc=yloc.price)
 
 // Breakeven Line
 plot(showBreakeven and in_position and breakeven_moved ? avg_entry : na, "⚖️ Breakeven", colBreakeven, 1, plot.style_circles)
+
+// Breakeven Inline Text
+if showBreakeven and in_position and breakeven_moved and bar_index % 20 == 0
+    label.new(bar_index, avg_entry, "Breakeven", style=label.style_none, textcolor=colBreakeven, size=size.small, yloc=yloc.price)
 
 // DCA level (använder avg_entry för att visa nästa DCA-nivå korrekt)
 dca1 = showDCALevels and use_dca and in_position and dca_count < dca_max_entries ? calc_dca_trigger(avg_entry, is_long) : na
 plot(dca1, "🔄 Next DCA Level", colDCA, 2, plot.style_cross)
 
+// DCA Inline Text
+if showDCALevels and use_dca and in_position and dca_count < dca_max_entries and bar_index % 20 == 0
+    label.new(bar_index, dca1, "Next DCA", style=label.style_none, textcolor=colDCA, size=size.small, yloc=yloc.price)
+
 // 🌊 ICHIMOKU (för Smart DCA)
 plot(showIchimoku ? tenkan : na, "🌊 Tenkan-sen", colTenkan, 2, plot.style_line)
 plot(showIchimoku ? kijun : na, "🌊 Kijun-sen", colKijun, 2, plot.style_line)
 
-// Ichimoku Labels (visar "Tenkan" och "Kijun" direkt på linjerna var 50:e bar)
-if showIchimoku and bar_index % 50 == 0
+// Ichimoku Inline Text (var 20:e bar istället för 50:e)
+if showIchimoku and bar_index % 20 == 0
     label.new(bar_index, tenkan, "Tenkan", style=label.style_none, textcolor=colTenkan, size=size.small, yloc=yloc.price)
     label.new(bar_index, kijun, "Kijun", style=label.style_none, textcolor=colKijun, size=size.small, yloc=yloc.price)
 
