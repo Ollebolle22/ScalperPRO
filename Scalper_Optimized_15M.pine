@@ -462,9 +462,11 @@ if not in_position and (is_long[1] or is_short[1])
 // 🔄 DCA HELPERS
 // ══════════════════════════════════════════════════════════════════════════════
 
-calc_dca_trigger(entry, is_long_pos, dca_num) =>
-    dist = dca_mode == "ATR Smart" ? atrValue * dynamicDCAMult * dca_num : entry * (dca_fixed_pct / 100) * dca_num
-    is_long_pos ? entry - dist : entry + dist
+// Beräknar DCA trigger från avg_entry med konstant spacing (inte multiplicerande)
+calc_dca_trigger(avg_price, is_long_pos) =>
+    // Konstant spacing för varje DCA-nivå
+    dist = dca_mode == "ATR Smart" ? atrValue * dynamicDCAMult : avg_price * (dca_fixed_pct / 100)
+    is_long_pos ? avg_price - dist : avg_price + dist
 
 calc_dca_qty(base, dca_num) =>
     base * math.pow(dca_size_mult, dca_num - 1)
@@ -502,7 +504,7 @@ if longCond and not in_position
 
         liq_price := liq
         initial_sl_dist := sl_dist
-        dca_count := 1
+        dca_count := 0  // Börja på 0 så första DCA blir DCA #1
         is_long := true
         is_short := false
         partial1_taken := false
@@ -558,7 +560,7 @@ if shortCond and not in_position
 
         liq_price := liq
         initial_sl_dist := sl_dist
-        dca_count := 1
+        dca_count := 0  // Börja på 0 så första DCA blir DCA #1
         is_long := false
         is_short := true
         partial1_taken := false
@@ -592,7 +594,8 @@ if shortCond and not in_position
 // ══════════════════════════════════════════════════════════════════════════════
 
 if use_dca and in_position and dca_count < dca_max_entries
-    dca_trigger = calc_dca_trigger(entry_price, is_long, dca_count)
+    // Beräkna DCA trigger från nuvarande avg_entry (inte entry_price)
+    dca_trigger = calc_dca_trigger(avg_entry, is_long)
     dca_hit = (is_long and low <= dca_trigger) or (is_short and high >= dca_trigger)
 
     // NYTT: Kontrollera att trenden håller i sig
@@ -691,7 +694,8 @@ if usePartialTP and partial1_enabled and in_position and not partial1_taken and 
     partial1_hit = (is_long and high >= partial_tp1_price) or (is_short and low <= partial_tp1_price)
 
     if partial1_hit
-        partial_qty = strategy.position_size * (partial1_pct / 100)
+        // Använd total_qty (ursprunglig + DCAs) istället för strategy.position_size (kvarvarande)
+        partial_qty = total_qty * (partial1_pct / 100)
         code = get_bot_code(is_long ? "EXIT-LONG" : "EXIT-SHORT")
 
         if is_long
@@ -714,7 +718,8 @@ if usePartialTP and partial2_enabled and in_position and not partial2_taken and 
     partial2_hit = (is_long and high >= partial_tp2_price) or (is_short and low <= partial_tp2_price)
 
     if partial2_hit
-        partial_qty = strategy.position_size * (partial2_pct / 100)
+        // Använd total_qty (ursprunglig + DCAs) istället för strategy.position_size (kvarvarande)
+        partial_qty = total_qty * (partial2_pct / 100)
         code = get_bot_code(is_long ? "EXIT-LONG" : "EXIT-SHORT")
 
         if is_long
@@ -737,7 +742,8 @@ if usePartialTP and partial3_enabled and in_position and not partial3_taken and 
     partial3_hit = (is_long and high >= partial_tp3_price) or (is_short and low <= partial_tp3_price)
 
     if partial3_hit
-        partial_qty = strategy.position_size * (partial3_pct / 100)
+        // Använd total_qty (ursprunglig + DCAs) istället för strategy.position_size (kvarvarande)
+        partial_qty = total_qty * (partial3_pct / 100)
         code = get_bot_code(is_long ? "EXIT-LONG" : "EXIT-SHORT")
 
         if is_long
@@ -760,7 +766,8 @@ if usePartialTP and partial4_enabled and in_position and not partial4_taken and 
     partial4_hit = (is_long and high >= partial_tp4_price) or (is_short and low <= partial_tp4_price)
 
     if partial4_hit
-        partial_qty = strategy.position_size * (partial4_pct / 100)
+        // Använd total_qty (ursprunglig + DCAs) istället för strategy.position_size (kvarvarande)
+        partial_qty = total_qty * (partial4_pct / 100)
         code = get_bot_code(is_long ? "EXIT-LONG" : "EXIT-SHORT")
 
         if is_long
@@ -889,8 +896,8 @@ plot(showLiqLine and in_position ? liq_price : na, "⚠️ Liquidation", colLiq,
 // Breakeven Line
 plot(showBreakeven and in_position and breakeven_moved ? avg_entry : na, "⚖️ Breakeven", colBreakeven, 1, plot.style_circles)
 
-// DCA levels (använder entry_price, inte avg_entry)
-dca1 = showDCALevels and use_dca and in_position and dca_count < dca_max_entries ? calc_dca_trigger(entry_price, is_long, dca_count) : na
+// DCA level (använder avg_entry för att visa nästa DCA-nivå korrekt)
+dca1 = showDCALevels and use_dca and in_position and dca_count < dca_max_entries ? calc_dca_trigger(avg_entry, is_long) : na
 plot(dca1, "🔄 Next DCA Level", colDCA, 2, plot.style_cross)
 
 // Background för ADX
