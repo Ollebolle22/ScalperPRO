@@ -7,7 +7,8 @@ strategy("⚡ Momentum Scalper PRO v13.0 [15M Optimized]",
      pyramiding=5,
      calc_on_every_tick=false,
      process_orders_on_close=true,
-     max_bars_back=500)
+     max_bars_back=500,
+     scale=scale.right)
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ⚙️ STRATEGY PROPERTIES (flyttat från hardcoded settings)
