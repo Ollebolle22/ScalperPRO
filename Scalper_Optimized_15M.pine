@@ -1122,12 +1122,8 @@ plot(showLiqLine and in_position ? liq_price : na, "⚠️ Liquidation", colLiq,
 plot(showBreakeven and in_position and breakeven_moved ? avg_entry : na, "⚖️ Breakeven", colBreakeven, 1, plot.style_circles)
 
 // DCA level (visar buydown-nivå)
-var float dca_buydown_level = na
-if showDCALevels and use_dca and in_position and dca_count < dca_max_entries
-    buydown_dist = avg_entry * (du_buydown / 100)
-    dca_buydown_level := is_long ? avg_entry - buydown_dist : avg_entry + buydown_dist
-else
-    dca_buydown_level := na
+dca_buydown_level = showDCALevels and use_dca and in_position and dca_count < dca_max_entries ?
+     (is_long ? avg_entry - avg_entry * (du_buydown / 100) : avg_entry + avg_entry * (du_buydown / 100)) : na
 plot(dca_buydown_level, "🔄 DCA Buydown Level", colDCA, 2, plot.style_cross)
 
 // 📊 BOLLINGER BANDS (för HIGHBB DCA)
