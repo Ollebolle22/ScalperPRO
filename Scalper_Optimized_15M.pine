@@ -1177,39 +1177,35 @@ pTrend = plot(showEMAs ? emaTrend : na, "Trend EMA", colTrendEMA, 3)
 // EMA Fill
 fill(pFast, pSlow, emaFast > emaSlow ? color.new(colBull, 90) : color.new(colBear, 90))
 
-// SL Line (only shown when all DCAs complete AND cooldown passed)
+// SL Line - VISA alltid när in position (men bara aktiv efter cooldown)
 sl_cooldown_passed = bars_since_all_dcas_complete >= sl_cooldown_after_dca
 sl_active = in_position and (not use_dca or (dca_count >= dca_max_entries and sl_cooldown_passed))
-plot(showSLTP and sl_active ? stop_loss : na, "🛑 Stop Loss", colSL, 2, plot.style_linebr)
+plot(showSLTP and in_position ? stop_loss : na, "🛑 Stop Loss", colSL, 2, plot.style_stepline)
 
 // UNIT COST LINE - visar EXAKT inköpspris (från TradingView)
-plot(in_position ? strategy.position_avg_price : na, "🏷️ Unit Cost (Avg Entry)", colUnitCost, 2, plot.style_line)
+plot(in_position ? strategy.position_avg_price : na, "🏷️ Unit Cost (Avg Entry)", colUnitCost, 2, plot.style_stepline)
 
 // Multi-Level Partial TP Lines
-plot(showPartialTP and in_position and partial1_enabled and not partial1_taken ? partial_tp1_price : na, "📊 Partial TP1", colPartial, 1, plot.style_circles)
-plot(showPartialTP and in_position and partial2_enabled and not partial2_taken ? partial_tp2_price : na, "📊 Partial TP2", colPartial, 1, plot.style_circles)
-plot(showPartialTP and in_position and partial3_enabled and not partial3_taken ? partial_tp3_price : na, "📊 Partial TP3", colPartial, 1, plot.style_circles)
-plot(showPartialTP and in_position and partial4_enabled and not partial4_taken ? partial_tp4_price : na, "📊 Partial TP4", colPartial, 1, plot.style_circles)
+plot(showPartialTP and in_position and partial1_enabled and not partial1_taken ? partial_tp1_price : na, "📊 Partial TP1", colPartial, 2, plot.style_stepline)
+plot(showPartialTP and in_position and partial2_enabled and not partial2_taken ? partial_tp2_price : na, "📊 Partial TP2", colPartial, 2, plot.style_stepline)
+plot(showPartialTP and in_position and partial3_enabled and not partial3_taken ? partial_tp3_price : na, "📊 Partial TP3", colPartial, 2, plot.style_stepline)
+plot(showPartialTP and in_position and partial4_enabled and not partial4_taken ? partial_tp4_price : na, "📊 Partial TP4", colPartial, 2, plot.style_stepline)
 
-plot(showLiqLine and in_position ? liq_price : na, "⚠️ Liquidation", colLiq, 2, plot.style_linebr)
+plot(showLiqLine and in_position ? liq_price : na, "⚠️ Liquidation", colLiq, 2, plot.style_stepline)
 
 // Breakeven Line
-plot(showBreakeven and in_position and breakeven_moved ? avg_entry : na, "⚖️ Breakeven", colBreakeven, 1, plot.style_circles)
+plot(showBreakeven and in_position and breakeven_moved ? avg_entry : na, "⚖️ Breakeven", colBreakeven, 2, plot.style_stepline)
 
 // DCA level (visar buydown-nivå)
 dca_buydown_level = showDCALevels and use_dca and in_position and dca_count < dca_max_entries ?
      (is_long ? avg_entry - avg_entry * (du_buydown / 100) : avg_entry + avg_entry * (du_buydown / 100)) : na
-plot(dca_buydown_level, "🔄 DCA Buydown Level", colDCA, 2, plot.style_cross)
+plot(dca_buydown_level, "🔄 DCA Buydown Level", colDCA, 2, plot.style_stepline)
 
 // 📊 BOLLINGER BANDS (för HIGHBB DCA)
 pBBUpper = plot(showBollingerBands ? bb_upper : na, "📊 BB Upper", colBBUpper, 1)
 pBBBasis = plot(showBollingerBands ? bb_basis : na, "📊 BB Basis", colBBBasis, 1, plot.style_line)
 pBBLower = plot(showBollingerBands ? bb_lower : na, "📊 BB Lower", colBBLower, 1)
 fill(pBBUpper, pBBLower, color.new(colBBUpper, 95), title="BB Fill")
-
-// Background för ADX
-bgcolor(useADX and adxValue < 20 ? color.new(color.red, 95) : na, title="Weak Trend Warning")
-bgcolor(strongTrend ? color.new(color.green, 97) : na, title="Strong Trend")
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 📊 STATS
