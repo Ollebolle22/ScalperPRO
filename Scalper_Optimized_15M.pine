@@ -1137,22 +1137,19 @@ if in_position and not na(avg_entry) and not na(initial_sl_dist)
 // ══════════════════════════════════════════════════════════════════════════════
 
 if in_position and not na(stop_loss)
-    // SL only active when ALL DCA entries are complete (or DCA disabled)
-    dca_complete = not use_dca or dca_count >= dca_max_entries
-
     exit_code = get_bot_code(is_long ? "EXIT-LONG" : "EXIT-SHORT")
 
     if is_long
-        if dca_complete
-            // All DCAs done - use SL (partial TPs handle profit taking)
+        if sl_active
+            // SL active after cooldown period following all DCAs
             strategy.exit("Exit Long", "Long", stop=stop_loss, comment_loss="SL✗")
-        // DCAs still pending - no SL, only partial TPs
+        // DCAs still pending or cooldown not passed - no SL, only partial TPs
 
     if is_short
-        if dca_complete
-            // All DCAs done - use SL (partial TPs handle profit taking)
+        if sl_active
+            // SL active after cooldown period following all DCAs
             strategy.exit("Exit Short", "Short", stop=stop_loss, comment_loss="SL✗")
-        // DCAs still pending - no SL, only partial TPs
+        // DCAs still pending or cooldown not passed - no SL, only partial TPs
 
 // Exit alerts (with deduplication check)
 if strategy.position_size == 0 and strategy.position_size[1] > 0 and not exit_alert_sent_this_bar
@@ -1180,26 +1177,26 @@ fill(pFast, pSlow, emaFast > emaSlow ? color.new(colBull, 90) : color.new(colBea
 // SL Line - VISA alltid när in position (men bara aktiv efter cooldown)
 sl_cooldown_passed = bars_since_all_dcas_complete >= sl_cooldown_after_dca
 sl_active = in_position and (not use_dca or (dca_count >= dca_max_entries and sl_cooldown_passed))
-plot(showSLTP and in_position ? stop_loss : na, "🛑 Stop Loss", colSL, 2, plot.style_stepline)
+plot(showSLTP and in_position ? stop_loss : na, "🛑 Stop Loss", colSL, 1, plot.style_linebr)
 
 // UNIT COST LINE - visar EXAKT inköpspris (från TradingView)
-plot(in_position ? strategy.position_avg_price : na, "🏷️ Unit Cost (Avg Entry)", colUnitCost, 2, plot.style_stepline)
+plot(in_position ? strategy.position_avg_price : na, "🏷️ Unit Cost (Avg Entry)", colUnitCost, 1, plot.style_linebr)
 
 // Multi-Level Partial TP Lines
-plot(showPartialTP and in_position and partial1_enabled and not partial1_taken ? partial_tp1_price : na, "📊 Partial TP1", colPartial, 2, plot.style_stepline)
-plot(showPartialTP and in_position and partial2_enabled and not partial2_taken ? partial_tp2_price : na, "📊 Partial TP2", colPartial, 2, plot.style_stepline)
-plot(showPartialTP and in_position and partial3_enabled and not partial3_taken ? partial_tp3_price : na, "📊 Partial TP3", colPartial, 2, plot.style_stepline)
-plot(showPartialTP and in_position and partial4_enabled and not partial4_taken ? partial_tp4_price : na, "📊 Partial TP4", colPartial, 2, plot.style_stepline)
+plot(showPartialTP and in_position and partial1_enabled and not partial1_taken ? partial_tp1_price : na, "📊 Partial TP1", colPartial, 1, plot.style_linebr)
+plot(showPartialTP and in_position and partial2_enabled and not partial2_taken ? partial_tp2_price : na, "📊 Partial TP2", colPartial, 1, plot.style_linebr)
+plot(showPartialTP and in_position and partial3_enabled and not partial3_taken ? partial_tp3_price : na, "📊 Partial TP3", colPartial, 1, plot.style_linebr)
+plot(showPartialTP and in_position and partial4_enabled and not partial4_taken ? partial_tp4_price : na, "📊 Partial TP4", colPartial, 1, plot.style_linebr)
 
-plot(showLiqLine and in_position ? liq_price : na, "⚠️ Liquidation", colLiq, 2, plot.style_stepline)
+plot(showLiqLine and in_position ? liq_price : na, "⚠️ Liquidation", colLiq, 1, plot.style_linebr)
 
 // Breakeven Line
-plot(showBreakeven and in_position and breakeven_moved ? avg_entry : na, "⚖️ Breakeven", colBreakeven, 2, plot.style_stepline)
+plot(showBreakeven and in_position and breakeven_moved ? avg_entry : na, "⚖️ Breakeven", colBreakeven, 1, plot.style_linebr)
 
 // DCA level (visar buydown-nivå)
 dca_buydown_level = showDCALevels and use_dca and in_position and dca_count < dca_max_entries ?
      (is_long ? avg_entry - avg_entry * (du_buydown / 100) : avg_entry + avg_entry * (du_buydown / 100)) : na
-plot(dca_buydown_level, "🔄 DCA Buydown Level", colDCA, 2, plot.style_stepline)
+plot(dca_buydown_level, "🔄 DCA Buydown Level", colDCA, 1, plot.style_linebr)
 
 // 📊 BOLLINGER BANDS (för HIGHBB DCA)
 pBBUpper = plot(showBollingerBands ? bb_upper : na, "📊 BB Upper", colBBUpper, 1)
@@ -1227,214 +1224,148 @@ currentR = in_position and not na(avg_entry) and not na(initial_sl_dist) ? (is_l
 // ══════════════════════════════════════════════════════════════════════════════
 
 if showInfoPanel
-    var table panel = table.new(position.top_right, 2, 35, bgcolor=color.new(#000000, 80), border_width=2, border_color=color.gray)
+    var table panel = table.new(position.bottom_center, 22, 2, bgcolor=color.new(#000000, 80), border_width=1, border_color=color.gray)
 
-    // Header
-    table.cell(panel, 0, 0, "⚡ SCALPER v13.0 [15M]", text_color=color.white, text_size=size.normal, bgcolor=color.new(#2962FF, 50))
-    table.merge_cells(panel, 0, 0, 1, 0)
-
-    row = 1
-
-    // Market Conditions
-    table.cell(panel, 0, row, "🌊 MARKET", text_color=color.white, text_size=size.small, bgcolor=color.new(#9C27B0, 60))
-    table.merge_cells(panel, 0, row, 1, row)
-    row += 1
-
-    // Trend
-    trendTxt = bullTrend ? "🟢 BULL" : bearTrend ? "🔴 BEAR" : "🟡 NEUTRAL"
+    // Prepare data for horizontal layout
+    trendTxt = bullTrend ? "🟢 BULL" : bearTrend ? "🔴 BEAR" : "🟡 NEUT"
     trendCol = bullTrend ? colBull : bearTrend ? colBear : color.yellow
-    table.cell(panel, 0, row, "Trend", text_color=color.white, text_size=size.small)
-    table.cell(panel, 1, row, trendTxt, text_color=trendCol, text_size=size.small)
-    row += 1
-
-    // ADX
-    adxTxt = adxValue >= adxStrong ? "💪 STARK" : adxValue >= adxThreshold ? "✓ OK" : "⚠️ SVAG"
-    adxCol = adxValue >= adxStrong ? colBull : adxValue >= adxThreshold ? color.yellow : colBear
-    table.cell(panel, 0, row, "ADX", text_color=color.white, text_size=size.small)
-    table.cell(panel, 1, row, str.tostring(adxValue, "#.#") + " " + adxTxt, text_color=adxCol, text_size=size.small)
-    row += 1
-
-    // MACD
-    macdTxt = macdLine > signalLine ? "🟢" : "🔴"
-    table.cell(panel, 0, row, "MACD", text_color=color.white, text_size=size.small)
-    table.cell(panel, 1, row, macdTxt + (macdHistGrowing ? " ⬆" : " ⬇"), text_color=macdLine > signalLine ? colBull : colBear, text_size=size.small)
-    row += 1
-
-    // Volume
-    volTxt = volume > volMA * volMultiplier ? "🟢 HIGH" : "🟡 LOW"
-    table.cell(panel, 0, row, "Volume", text_color=color.white, text_size=size.small)
-    table.cell(panel, 1, row, volTxt, text_color=volume > volMA * volMultiplier ? colBull : color.yellow, text_size=size.small)
-    row += 1
-
-    // 🎯 Volatilitet & Dynamiska Multiplar
-    volStatus = volRatio >= volThreshold ? "🔥 HÖG" : volRatio >= 1.0 ? "📊 NORMAL" : "🧊 LÅG"
-    volColor = volRatio >= volThreshold ? color.orange : volRatio >= 1.0 ? color.yellow : color.aqua
-    table.cell(panel, 0, row, "Volatilitet", text_color=color.white, text_size=size.small)
-    table.cell(panel, 1, row, volStatus + " " + str.tostring(volRatio, "#.##"), text_color=volColor, text_size=size.small)
-    row += 1
-
-    if useDynamicSL
-        table.cell(panel, 0, row, "SL Multipel", text_color=color.white, text_size=size.small)
-        table.cell(panel, 1, row, str.tostring(dynamicSLMult, "#.#") + "x ATR", text_color=color.new(colSL, 0), text_size=size.small)
-        row += 1
-
-    // 🔄 Dynamisk DCA Spacing
-    if useDynamicDCA
-        table.cell(panel, 0, row, "DCA Spacing", text_color=color.white, text_size=size.small)
-        table.cell(panel, 1, row, str.tostring(dynamicDCAMult, "#.#") + "x ATR", text_color=color.new(colDCA, 0), text_size=size.small)
-        row += 1
-
-    // 📊 Dynamiska Partial TP R-multiplar
-    if useDynamicPartialTP and usePartialTP and numPartialLevels > 0
-        table.cell(panel, 0, row, "Partial TP Rs", text_color=color.white, text_size=size.small)
-        r_values = str.tostring(dynamicPartial1_R, "#.#") + "R"
-        if numPartialLevels >= 2
-            r_values += ", " + str.tostring(dynamicPartial2_R, "#.#") + "R"
-        if numPartialLevels >= 3
-            r_values += ", " + str.tostring(dynamicPartial3_R, "#.#") + "R"
-        if numPartialLevels >= 4
-            r_values += ", " + str.tostring(dynamicPartial4_R, "#.#") + "R"
-        table.cell(panel, 1, row, r_values, text_color=color.new(colPartial, 0), text_size=size.small)
-        row += 1
-
-    // Separator
-    table.cell(panel, 0, row, "═══════════", text_color=color.gray, text_size=size.small, bgcolor=color.new(color.gray, 85))
-    table.merge_cells(panel, 0, row, 1, row)
-    row += 1
-
-    // Position Header
-    table.cell(panel, 0, row, "📊 POSITION", text_color=color.white, text_size=size.small, bgcolor=color.new(#FF6D00, 60))
-    table.merge_cells(panel, 0, row, 1, row)
-    row += 1
-
-    // Status
     posTxt = is_long ? "🟢 LONG" : is_short ? "🔴 SHORT" : "⚪ FLAT"
     posCol = is_long ? colBull : is_short ? colBear : color.gray
-    table.cell(panel, 0, row, "Status", text_color=color.white, text_size=size.small)
-    table.cell(panel, 1, row, posTxt, text_color=posCol, text_size=size.small)
-    row += 1
+    pnlTxt = in_position ? (currentPnL >= 0 ? "+" : "") + str.tostring(currentPnL, "#.#") + "%" : "—"
+    pnlCol = currentPnL >= 0 ? colBull : colBear
+    rTxt = in_position ? (currentR >= 0 ? "+" : "") + str.tostring(currentR, "#.#") + "R" : "—"
+    rCol = currentR >= 0 ? colBull : colBear
+    slTxt = in_position and use_dca and dca_count < dca_max_entries ? "⏸️ DCA" : in_position ? str.tostring(stop_loss, format.mintick) : "—"
+    slCol = in_position and not (use_dca and dca_count < dca_max_entries) ? colSL : color.gray
+    tp_taken_count = (partial1_taken ? 1 : 0) + (partial2_taken ? 1 : 0) + (partial3_taken ? 1 : 0) + (partial4_taken ? 1 : 0)
+    tpTxt = usePartialTP ? str.tostring(tp_taken_count) + "/" + str.tostring(numPartialLevels) : "—"
+    dca_done = use_dca ? dca_count - 1 : 0
+    dcaTxt = use_dca ? str.tostring(dca_done) + "/" + str.tostring(dca_max_entries - 1) : "OFF"
+    wrCol = winRate >= 50 ? colBull : winRate >= 40 ? color.yellow : colBear
+    pfCol = profitFactor >= 2.0 ? colBull : profitFactor >= 1.5 ? color.yellow : colBear
+    netCol = strategy.netprofit >= 0 ? colBull : colBear
 
-    // 🏷️ UNIT COST - EXAKT inköpspris
-    table.cell(panel, 0, row, "🏷️ Unit Cost", text_color=color.white, text_size=size.small)
-    table.cell(panel, 1, row, in_position ? str.tostring(strategy.position_avg_price, format.mintick) : "—", text_color=color.yellow, text_size=size.small)
-    row += 1
+    col = 0
 
-    // Total Entries (initial + DCA)
-    table.cell(panel, 0, row, "Total Entries", text_color=color.white, text_size=size.small)
-    totalEntriesTxt = in_position ? str.tostring(dca_count) + " entries" : "—"
-    table.cell(panel, 1, row, totalEntriesTxt, text_color=color.white, text_size=size.small)
-    row += 1
+    // Position
+    table.cell(panel, col, 0, "Status", text_color=color.gray, text_size=size.tiny)
+    table.cell(panel, col, 1, posTxt, text_color=posCol, text_size=size.small)
+    col += 1
 
-    // Total Position Value
-    table.cell(panel, 0, row, "Position Value", text_color=color.white, text_size=size.small)
-    posValue = in_position ? strategy.position_avg_price * math.abs(strategy.position_size) : 0.0
-    posValueTxt = in_position ? "$" + str.tostring(posValue, "#") : "—"
-    table.cell(panel, 1, row, posValueTxt, text_color=color.white, text_size=size.small)
-    row += 1
+    // P&L
+    table.cell(panel, col, 0, "P&L", text_color=color.gray, text_size=size.tiny)
+    table.cell(panel, col, 1, pnlTxt, text_color=in_position ? pnlCol : color.gray, text_size=size.small)
+    col += 1
 
     // Current R
-    table.cell(panel, 0, row, "Current R", text_color=color.white, text_size=size.small)
-    rTxt = in_position ? (currentR >= 0 ? "+" : "") + str.tostring(currentR, "#.##") + "R" : "—"
-    rCol = currentR >= 0 ? colBull : colBear
-    table.cell(panel, 1, row, rTxt, text_color=in_position ? rCol : color.gray, text_size=size.small)
-    row += 1
+    table.cell(panel, col, 0, "R", text_color=color.gray, text_size=size.tiny)
+    table.cell(panel, col, 1, rTxt, text_color=in_position ? rCol : color.gray, text_size=size.small)
+    col += 1
 
-    // P&L %
-    table.cell(panel, 0, row, "P&L", text_color=color.white, text_size=size.small)
-    pnlTxt = in_position ? (currentPnL >= 0 ? "+" : "") + str.tostring(currentPnL, "#.##") + "%" : "—"
-    pnlCol = currentPnL >= 0 ? colBull : colBear
-    table.cell(panel, 1, row, pnlTxt, text_color=in_position ? pnlCol : color.gray, text_size=size.small)
-    row += 1
+    // Unit Cost
+    table.cell(panel, col, 0, "Entry", text_color=color.gray, text_size=size.tiny)
+    table.cell(panel, col, 1, in_position ? str.tostring(strategy.position_avg_price, format.mintick) : "—", text_color=color.yellow, text_size=size.small)
+    col += 1
 
-    // SL (inactive until all DCAs complete)
-    table.cell(panel, 0, row, "Stop Loss", text_color=color.white, text_size=size.small)
-    slTxt = "—"
-    slCol = color.gray
-    if in_position and use_dca and dca_count < dca_max_entries
-        slTxt := "⏸️ Väntar DCA"
-        slCol := color.gray
-    else if in_position
-        slTxt := str.tostring(stop_loss, format.mintick)
-        if breakeven_moved
-            slTxt := slTxt + " 🔒"
-        slCol := colSL
-    table.cell(panel, 1, row, slTxt, text_color=slCol, text_size=size.small)
-    row += 1
+    // SL
+    table.cell(panel, col, 0, "SL", text_color=color.gray, text_size=size.tiny)
+    table.cell(panel, col, 1, slTxt, text_color=slCol, text_size=size.small)
+    col += 1
 
-    // Multi-Level Partial TP Status
-    if usePartialTP and numPartialLevels > 0
-        table.cell(panel, 0, row, "Partial TPs", text_color=color.white, text_size=size.small)
-        tp_taken_count = (partial1_taken ? 1 : 0) + (partial2_taken ? 1 : 0) + (partial3_taken ? 1 : 0) + (partial4_taken ? 1 : 0)
-        partialStatusTxt = str.tostring(tp_taken_count) + "/" + str.tostring(numPartialLevels) + " taken"
-        table.cell(panel, 1, row, partialStatusTxt, text_color=tp_taken_count > 0 ? colBull : colPartial, text_size=size.small)
-        row += 1
+    // TP Status
+    table.cell(panel, col, 0, "TPs", text_color=color.gray, text_size=size.tiny)
+    table.cell(panel, col, 1, tpTxt, text_color=tp_taken_count > 0 ? colBull : colPartial, text_size=size.small)
+    col += 1
+
+    // DCA Status
+    table.cell(panel, col, 0, "DCA", text_color=color.gray, text_size=size.tiny)
+    table.cell(panel, col, 1, dcaTxt, text_color=use_dca ? colDCA : color.gray, text_size=size.small)
+    col += 1
+
+    // Separator
+    table.cell(panel, col, 0, "│", text_color=color.gray, text_size=size.small)
+    table.cell(panel, col, 1, "│", text_color=color.gray, text_size=size.small)
+    col += 1
+
+    // Trend
+    table.cell(panel, col, 0, "Trend", text_color=color.gray, text_size=size.tiny)
+    table.cell(panel, col, 1, trendTxt, text_color=trendCol, text_size=size.small)
+    col += 1
+
+    // ADX
+    adxTxt = str.tostring(adxValue, "#") + (adxValue >= adxStrong ? "💪" : adxValue >= adxThreshold ? "✓" : "⚠")
+    adxCol = adxValue >= adxStrong ? colBull : adxValue >= adxThreshold ? color.yellow : colBear
+    table.cell(panel, col, 0, "ADX", text_color=color.gray, text_size=size.tiny)
+    table.cell(panel, col, 1, adxTxt, text_color=adxCol, text_size=size.small)
+    col += 1
+
+    // MACD
+    macdTxt = macdLine > signalLine ? "🟢" + (macdHistGrowing ? "⬆" : "⬇") : "🔴" + (macdHistGrowing ? "⬆" : "⬇")
+    table.cell(panel, col, 0, "MACD", text_color=color.gray, text_size=size.tiny)
+    table.cell(panel, col, 1, macdTxt, text_color=macdLine > signalLine ? colBull : colBear, text_size=size.small)
+    col += 1
+
+    // Volume
+    volTxt = volume > volMA * volMultiplier ? "🟢" : "🟡"
+    table.cell(panel, col, 0, "Vol", text_color=color.gray, text_size=size.tiny)
+    table.cell(panel, col, 1, volTxt, text_color=volume > volMA * volMultiplier ? colBull : color.yellow, text_size=size.small)
+    col += 1
+
+    // Volatility
+    volStatus = volRatio >= volThreshold ? "🔥" : volRatio >= 1.0 ? "📊" : "🧊"
+    volColor = volRatio >= volThreshold ? color.orange : volRatio >= 1.0 ? color.yellow : color.aqua
+    table.cell(panel, col, 0, "Vol Ratio", text_color=color.gray, text_size=size.tiny)
+    table.cell(panel, col, 1, volStatus + str.tostring(volRatio, "#.#"), text_color=volColor, text_size=size.small)
+    col += 1
+
+    // Separator
+    table.cell(panel, col, 0, "│", text_color=color.gray, text_size=size.small)
+    table.cell(panel, col, 1, "│", text_color=color.gray, text_size=size.small)
+    col += 1
 
     // Trailing
     if useTrailingStop
-        table.cell(panel, 0, row, "Trailing", text_color=color.white, text_size=size.small)
-        trailTxt = trail_activated ? "🔥 ACTIVE" : in_position ? "⏳ Wait " + str.tostring(trailActivation, "#.#") + "R" : "—"
-        table.cell(panel, 1, row, trailTxt, text_color=trail_activated ? color.orange : color.gray, text_size=size.small)
-        row += 1
+        trailTxt = trail_activated ? "🔥" : "⏳"
+        table.cell(panel, col, 0, "Trail", text_color=color.gray, text_size=size.tiny)
+        table.cell(panel, col, 1, trailTxt, text_color=trail_activated ? color.orange : color.gray, text_size=size.small)
+        col += 1
 
-    // Liquidation
+    // Liquidation Distance
     liqCol = distToLiq < 10 ? colBear : distToLiq < 15 ? color.orange : colLiq
-    table.cell(panel, 0, row, "⚠️ Liq Dist", text_color=color.white, text_size=size.small)
-    liqTxt = in_position ? str.tostring(distToLiq, "#.#") + "%" : "—"
-    table.cell(panel, 1, row, liqTxt, text_color=liqCol, text_size=size.small)
-    row += 1
-
-    // DCA Status
-    table.cell(panel, 0, row, "DCA Gjorda", text_color=color.white, text_size=size.small)
-    dca_done = use_dca ? dca_count - 1 : 0  // -1 för initial entry räknas inte som DCA
-    dcaDoneTxt = use_dca ? str.tostring(dca_done) : "OFF"
-    table.cell(panel, 1, row, dcaDoneTxt, text_color=use_dca ? colDCA : color.gray, text_size=size.small)
-    row += 1
-
-    // DCA Kvar
-    if use_dca
-        table.cell(panel, 0, row, "DCA Kvar", text_color=color.white, text_size=size.small)
-        dca_remaining = math.max(0, dca_max_entries - dca_count)
-        dcaRemainTxt = str.tostring(dca_remaining)
-        table.cell(panel, 1, row, dcaRemainTxt, text_color=dca_remaining > 0 ? colDCA : color.gray, text_size=size.small)
-        row += 1
+    liqTxt = in_position ? str.tostring(distToLiq, "#") + "%" : "—"
+    table.cell(panel, col, 0, "⚠️ Liq", text_color=color.gray, text_size=size.tiny)
+    table.cell(panel, col, 1, liqTxt, text_color=liqCol, text_size=size.small)
+    col += 1
 
     // Separator
-    table.cell(panel, 0, row, "═══════════", text_color=color.gray, text_size=size.small, bgcolor=color.new(color.gray, 85))
-    table.merge_cells(panel, 0, row, 1, row)
-    row += 1
-
-    // Performance Header
-    table.cell(panel, 0, row, "📈 PERFORMANCE", text_color=color.white, text_size=size.small, bgcolor=color.new(#26A69A, 60))
-    table.merge_cells(panel, 0, row, 1, row)
-    row += 1
+    table.cell(panel, col, 0, "│", text_color=color.gray, text_size=size.small)
+    table.cell(panel, col, 1, "│", text_color=color.gray, text_size=size.small)
+    col += 1
 
     // Trades
-    table.cell(panel, 0, row, "Trades", text_color=color.white, text_size=size.small)
-    table.cell(panel, 1, row, str.tostring(totalTrades), text_color=color.white, text_size=size.small)
-    row += 1
+    table.cell(panel, col, 0, "Trades", text_color=color.gray, text_size=size.tiny)
+    table.cell(panel, col, 1, str.tostring(totalTrades), text_color=color.white, text_size=size.small)
+    col += 1
 
     // Win Rate
-    wrCol = winRate >= 50 ? colBull : winRate >= 40 ? color.yellow : colBear
-    table.cell(panel, 0, row, "Win Rate", text_color=color.white, text_size=size.small)
-    table.cell(panel, 1, row, str.tostring(winRate, "#.#") + "%", text_color=wrCol, text_size=size.small)
-    row += 1
+    table.cell(panel, col, 0, "WR", text_color=color.gray, text_size=size.tiny)
+    table.cell(panel, col, 1, str.tostring(winRate, "#") + "%", text_color=wrCol, text_size=size.small)
+    col += 1
 
     // Profit Factor
-    pfCol = profitFactor >= 2.0 ? colBull : profitFactor >= 1.5 ? color.yellow : colBear
-    table.cell(panel, 0, row, "Profit Factor", text_color=color.white, text_size=size.small)
-    table.cell(panel, 1, row, str.tostring(profitFactor, "#.##"), text_color=pfCol, text_size=size.small)
-    row += 1
+    table.cell(panel, col, 0, "PF", text_color=color.gray, text_size=size.tiny)
+    table.cell(panel, col, 1, str.tostring(profitFactor, "#.#"), text_color=pfCol, text_size=size.small)
+    col += 1
 
     // Avg R:R
     rrCol = avgRR >= 2.0 ? colBull : avgRR >= 1.5 ? color.yellow : colBear
-    table.cell(panel, 0, row, "Avg R:R", text_color=color.white, text_size=size.small)
-    table.cell(panel, 1, row, str.tostring(avgRR, "#.##"), text_color=rrCol, text_size=size.small)
-    row += 1
+    table.cell(panel, col, 0, "R:R", text_color=color.gray, text_size=size.tiny)
+    table.cell(panel, col, 1, str.tostring(avgRR, "#.#"), text_color=rrCol, text_size=size.small)
+    col += 1
 
-    // Net Profit
-    netCol = strategy.netprofit >= 0 ? colBull : colBear
-    table.cell(panel, 0, row, "Net P&L", text_color=color.white, text_size=size.small)
-    table.cell(panel, 1, row, "$" + str.tostring(strategy.netprofit, "#"), text_color=netCol, text_size=size.small)
+    // Net P&L
+    table.cell(panel, col, 0, "Net", text_color=color.gray, text_size=size.tiny)
+    table.cell(panel, col, 1, "$" + str.tostring(strategy.netprofit, "#"), text_color=netCol, text_size=size.small)
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 🔔 ALERTS - Via alert() function calls only (WunderTrading compatible)
