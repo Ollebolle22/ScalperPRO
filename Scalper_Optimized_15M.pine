@@ -122,6 +122,9 @@ slBaseMultiplier = input.float(2.5, "🛑 SL Base Multipel (låg vol)", step=0.1
 slMaxMultiplier = input.float(4.0, "🛑 SL Max Multipel (hög vol)", step=0.1, group=grpRisk, tooltip="Maximum SL vid hög volatilitet - bredare SL")
 atrMultSL = input.float(3.0, "⚠️ Fallback SL Multipel", step=0.1, group=grpRisk, tooltip="Används endast om dynamisk SL är avstängd")
 
+// ⏰ SL COOLDOWN EFTER SISTA DCA
+sl_cooldown_after_dca = input.int(15, "⏰ SL Cooldown efter sista DCA (bars)", minval=0, group=grpRisk, tooltip="Vänta X bars efter sista DCA innan SL aktiveras - ger DCA chans att jobba")
+
 // 🎯 VOLATILITET (delad för alla dynamiska beräkningar)
 volThreshold = input.float(1.3, "📈 Volatilitetströskel", step=0.1, group=grpRisk, tooltip="ATR/SMA(ATR) över detta = hög volatilitet")
 volAvgLength = input.int(50, "📊 Volatilitets Genomsnitt", step=5, group=grpRisk, tooltip="Period för att jämföra aktuell ATR")
@@ -498,6 +501,10 @@ var int bars_since_partial2 = 0
 // ⏰ DCA Cooldown Tracking
 var int bars_since_last_dca = 999
 
+// ⏰ SL Cooldown efter sista DCA
+var int bars_since_all_dcas_complete = 0
+var bool all_dcas_completed = false
+
 in_position = strategy.position_size != 0
 
 // 🔔 Exit Alert Deduplication Flag (WunderTrading)
@@ -543,6 +550,8 @@ if not in_position and (is_long[1] or is_short[1])
     tp_update_counter := 0
     bars_since_partial2 := 0
     bars_since_last_dca := 999
+    bars_since_all_dcas_complete := 0
+    all_dcas_completed := false
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 🔄 DCA HELPERS
@@ -792,6 +801,17 @@ if use_dca and in_position and dca_count < dca_max_entries
 if in_position and not na(avg_entry) and not na(initial_sl_dist)
     // Räkna upp counter
     tp_update_counter += 1
+
+    // ⏰ Checka om alla DCAs är klara och räkna bars
+    if use_dca and dca_count >= dca_max_entries
+        if not all_dcas_completed
+            all_dcas_completed := true
+            bars_since_all_dcas_complete := 0
+        else
+            bars_since_all_dcas_complete += 1
+    else if not use_dca
+        // Ingen DCA används - räkna bars från entry
+        bars_since_all_dcas_complete += 1
 
     // 📊 DYNAMISK TP UPPDATERING - Baserat på löpande ATR
     if useDynamicPartialTP and tp_update_counter % tp_atr_adjustment_freq == 0
@@ -1157,8 +1177,9 @@ pTrend = plot(showEMAs ? emaTrend : na, "Trend EMA", colTrendEMA, 3)
 // EMA Fill
 fill(pFast, pSlow, emaFast > emaSlow ? color.new(colBull, 90) : color.new(colBear, 90))
 
-// SL Line (only shown when all DCAs complete)
-sl_active = in_position and (not use_dca or dca_count >= dca_max_entries)
+// SL Line (only shown when all DCAs complete AND cooldown passed)
+sl_cooldown_passed = bars_since_all_dcas_complete >= sl_cooldown_after_dca
+sl_active = in_position and (not use_dca or (dca_count >= dca_max_entries and sl_cooldown_passed))
 plot(showSLTP and sl_active ? stop_loss : na, "🛑 Stop Loss", colSL, 2, plot.style_linebr)
 
 // UNIT COST LINE - visar EXAKT inköpspris (från TradingView)
