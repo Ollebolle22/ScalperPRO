@@ -1136,6 +1136,10 @@ if in_position and not na(avg_entry) and not na(initial_sl_dist)
 // 🎯 EXITS
 // ══════════════════════════════════════════════════════════════════════════════
 
+// Check if SL cooldown has passed after all DCAs complete
+sl_cooldown_passed = bars_since_all_dcas_complete >= sl_cooldown_after_dca
+sl_active = in_position and (not use_dca or (dca_count >= dca_max_entries and sl_cooldown_passed))
+
 if in_position and not na(stop_loss)
     exit_code = get_bot_code(is_long ? "EXIT-LONG" : "EXIT-SHORT")
 
@@ -1175,8 +1179,6 @@ pTrend = plot(showEMAs ? emaTrend : na, "Trend EMA", colTrendEMA, 3)
 fill(pFast, pSlow, emaFast > emaSlow ? color.new(colBull, 90) : color.new(colBear, 90))
 
 // SL Line - VISA alltid när in position (men bara aktiv efter cooldown)
-sl_cooldown_passed = bars_since_all_dcas_complete >= sl_cooldown_after_dca
-sl_active = in_position and (not use_dca or (dca_count >= dca_max_entries and sl_cooldown_passed))
 plot(showSLTP and in_position ? stop_loss : na, "🛑 Stop Loss", colSL, 1, plot.style_linebr)
 
 // UNIT COST LINE - visar EXAKT inköpspris (från TradingView)
