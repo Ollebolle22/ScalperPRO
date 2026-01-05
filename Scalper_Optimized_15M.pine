@@ -7,7 +7,8 @@ strategy("⚡ Momentum Scalper PRO v13.0 [15M Optimized]",
      pyramiding=5,
      calc_on_every_tick=false,
      process_orders_on_close=true,
-     max_bars_back=500)
+     max_bars_back=500,
+     scale=scale.right)
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ⚙️ STRATEGY PROPERTIES (flyttat från hardcoded settings)
@@ -68,6 +69,9 @@ rsi_dca_high = input.int(70, "RSI DCA High", minval=0, maxval=100, group=grpDCA,
 // 🎯 DCA TRAILING
 use_dca_trailing = input.bool(false, "✓ DCA Trailing", group=grpDCA, tooltip="Vänta på lägsta pris innan DCA triggas")
 dca_trail_pct = input.float(0.5, "DCA Trail %", step=0.1, group=grpDCA, tooltip="Trail DCA trigger med denna %")
+
+// ⏰ DCA COOLDOWN
+dca_cooldown_bars = input.int(10, "⏰ DCA Cooldown (bars)", minval=1, group=grpDCA, tooltip="Minimum bars mellan DCA entries - förhindrar för täta DCAs")
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 📈 TREND SETTINGS (OPTIMERADE FÖR 15MIN)
@@ -134,6 +138,11 @@ tp_atr_adjustment_freq = input.int(5, "TP ATR Update Frekvens (bars)", minval=1,
 use_tp_trailing = input.bool(true, "✓ TP Trailing", group=grpRisk, tooltip="Trail TP-nivåer när priset närmar sig")
 tp_trail_activation_pct = input.float(90.0, "TP Trail Aktivering %", step=5.0, group=grpRisk, tooltip="Trail när priset når X% av avståndet till TP")
 tp_trail_offset_pct = input.float(0.3, "TP Trail Offset %", step=0.1, group=grpRisk, tooltip="Trail TP denna % från högsta/lägsta pris")
+
+// ⏰ TP TIME DECAY
+use_tp_time_decay = input.bool(true, "✓ TP Time Decay", group=grpRisk, tooltip="Dra ner TP3/TP4 närmare med tiden om de inte träffas")
+tp_decay_start_bars = input.int(20, "Decay Start (bars)", minval=1, group=grpRisk, tooltip="Börja dra ner TP3/TP4 efter X bars")
+tp_decay_rate = input.float(0.5, "Decay Rate %", step=0.1, group=grpRisk, tooltip="Hur mycket % TP3/TP4 dras ner per 10 bars")
 
 // Partial TP Level 1
 partial1_enabled = numPartialLevels >= 1
@@ -483,6 +492,12 @@ var float tp4_trail_low = na
 // 📊 Dynamisk TP Update Counter
 var int tp_update_counter = 0
 
+// ⏰ TP Time Decay Tracking
+var int bars_since_partial2 = 0
+
+// ⏰ DCA Cooldown Tracking
+var int bars_since_last_dca = 999
+
 in_position = strategy.position_size != 0
 
 // 🔔 Exit Alert Deduplication Flag (WunderTrading)
@@ -526,6 +541,8 @@ if not in_position and (is_long[1] or is_short[1])
     tp3_trail_low := na
     tp4_trail_low := na
     tp_update_counter := 0
+    bars_since_partial2 := 0
+    bars_since_last_dca := 999
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 🔄 DCA HELPERS
@@ -685,6 +702,9 @@ if shortCond and not in_position
 // ══════════════════════════════════════════════════════════════════════════════
 
 if use_dca and in_position and dca_count < dca_max_entries
+    // Räkna upp bars since last DCA
+    bars_since_last_dca += 1
+
     // 🎯 GUNBOT BUYDOWN: Minimum % price drop från avg_entry
     price_drop_pct = is_long ? (avg_entry - close) / avg_entry * 100 : (close - avg_entry) / avg_entry * 100
     buydown_ok = price_drop_pct >= du_buydown
@@ -695,7 +715,10 @@ if use_dca and in_position and dca_count < dca_max_entries
     // Kontrollera att trenden håller i sig
     trend_ok = not require_trend_for_dca or (is_long and bullTrend) or (is_short and bearTrend)
 
-    if buydown_ok and dca_method_ok and trend_ok
+    // ⏰ DCA COOLDOWN: Minimum bars sedan sista DCA
+    cooldown_ok = bars_since_last_dca >= dca_cooldown_bars
+
+    if buydown_ok and dca_method_ok and trend_ok and cooldown_ok
         dca_qty = calc_dca_qty(base_qty, dca_count + 1)
         current_value = avg_entry * total_qty
         new_value = close * dca_qty
@@ -721,6 +744,7 @@ if use_dca and in_position and dca_count < dca_max_entries
 
                 total_qty := new_total
                 dca_count += 1
+                bars_since_last_dca := 0  // Reset cooldown
 
                 code = get_bot_code("ENTER-LONG")
                 strategy.entry("Long", strategy.long, qty=dca_qty, comment="+" + str.tostring(dca_count))
@@ -750,6 +774,7 @@ if use_dca and in_position and dca_count < dca_max_entries
 
                 total_qty := new_total
                 dca_count += 1
+                bars_since_last_dca := 0  // Reset cooldown
 
                 code = get_bot_code("ENTER-SHORT")
                 strategy.entry("Short", strategy.short, qty=dca_qty, comment="+" + str.tostring(dca_count))
@@ -796,6 +821,35 @@ if in_position and not na(avg_entry) and not na(initial_sl_dist)
                 partial_tp4_price := avg_entry + (current_sl_dist * dynamicPartial4_R)
             else
                 partial_tp4_price := avg_entry - (current_sl_dist * dynamicPartial4_R)
+
+    // ⏰ TP TIME DECAY - Dra ner TP3/TP4 närmare med tiden
+    if use_tp_time_decay and partial2_taken
+        // Räkna bars since TP2 taken
+        bars_since_partial2 += 1
+
+        if bars_since_partial2 >= tp_decay_start_bars
+            // Beräkna decay multiplier baserat på tiden
+            bars_over_start = bars_since_partial2 - tp_decay_start_bars
+            decay_periods = math.floor(bars_over_start / 10)  // Decay per 10 bars
+            total_decay_pct = decay_periods * tp_decay_rate
+
+            // Applicera decay på TP3
+            if partial3_enabled and not partial3_taken and not na(partial_tp3_price)
+                dist_to_tp3 = is_long ? partial_tp3_price - avg_entry : avg_entry - partial_tp3_price
+                decayed_dist = dist_to_tp3 * (1 - total_decay_pct / 100)
+                if is_long
+                    partial_tp3_price := avg_entry + decayed_dist
+                else
+                    partial_tp3_price := avg_entry - decayed_dist
+
+            // Applicera decay på TP4
+            if partial4_enabled and not partial4_taken and not na(partial_tp4_price)
+                dist_to_tp4 = is_long ? partial_tp4_price - avg_entry : avg_entry - partial_tp4_price
+                decayed_dist = dist_to_tp4 * (1 - total_decay_pct / 100)
+                if is_long
+                    partial_tp4_price := avg_entry + decayed_dist
+                else
+                    partial_tp4_price := avg_entry - decayed_dist
 
     // 🎯 TP TRAILING - Trail TP när priset närmar sig
     if use_tp_trailing
