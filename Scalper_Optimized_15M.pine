@@ -641,9 +641,7 @@ if longCond and not in_position
         total_qty := entry_qty
 
         code = get_bot_code("ENTER-LONG")
-        strategy.entry("Long", strategy.long, qty=entry_qty, comment="L")
-
-        alert('{"code":"' + code + '","amountPerTrade":"' + str.tostring(entry_qty, "#.########") + '","amountPerTradeType":"quote"}', alert.freq_once_per_bar)
+        strategy.entry("Long", strategy.long, qty=entry_qty, comment=code)
 
         if showTradeLabels
             first_tp = partial1_enabled ? partial_tp1_price : na
@@ -696,9 +694,7 @@ if shortCond and not in_position
         total_qty := entry_qty
 
         code = get_bot_code("ENTER-SHORT")
-        strategy.entry("Short", strategy.short, qty=entry_qty, comment="S")
-
-        alert('{"code":"' + code + '","amountPerTrade":"' + str.tostring(entry_qty, "#.########") + '","amountPerTradeType":"quote"}', alert.freq_once_per_bar)
+        strategy.entry("Short", strategy.short, qty=entry_qty, comment=code)
 
         if showTradeLabels
             first_tp = partial1_enabled ? partial_tp1_price : na
@@ -756,9 +752,7 @@ if use_dca and in_position and dca_count < dca_max_entries
                 bars_since_last_dca := 0  // Reset cooldown
 
                 code = get_bot_code("ENTER-LONG")
-                strategy.entry("Long", strategy.long, qty=dca_qty, comment="+" + str.tostring(dca_count))
-
-                alert('{"code":"' + code + '","amountPerTrade":"' + str.tostring(dca_qty, "#.########") + '","amountPerTradeType":"quote"}', alert.freq_once_per_bar)
+                strategy.entry("Long", strategy.long, qty=dca_qty, comment=code)
 
                 if showTradeLabels
                     label.new(bar_index, low - atrValue * 1.5, "🔄 DCA#" + str.tostring(dca_count) + "\n📊 Avg: " + str.tostring(new_avg, format.mintick),
@@ -786,9 +780,7 @@ if use_dca and in_position and dca_count < dca_max_entries
                 bars_since_last_dca := 0  // Reset cooldown
 
                 code = get_bot_code("ENTER-SHORT")
-                strategy.entry("Short", strategy.short, qty=dca_qty, comment="+" + str.tostring(dca_count))
-
-                alert('{"code":"' + code + '","amountPerTrade":"' + str.tostring(dca_qty, "#.########") + '","amountPerTradeType":"quote"}', alert.freq_once_per_bar)
+                strategy.entry("Short", strategy.short, qty=dca_qty, comment=code)
 
                 if showTradeLabels
                     label.new(bar_index, high + atrValue * 1.5, "🔄 DCA#" + str.tostring(dca_count) + "\n📊 Avg: " + str.tostring(new_avg, format.mintick),
@@ -975,9 +967,7 @@ if in_position and not na(liq_price)
 
     if dist_to_liq < min_liq_distance
         code = get_bot_code(is_long ? "EXIT-LONG" : "EXIT-SHORT")
-        strategy.close_all(comment="⚠️LIQ")
-
-        alert('{"code":"' + code + '","amountPerTrade":"' + str.tostring(math.abs(strategy.position_size), "#.########") + '","amountPerTradeType":"quote"}', alert.freq_once_per_bar)
+        strategy.close_all(comment=code)
         exit_alert_sent_this_bar := true
 
         if showTradeLabels
@@ -998,11 +988,10 @@ if usePartialTP and partial1_enabled and in_position and not partial1_taken and 
         code = get_bot_code(is_long ? "EXIT-LONG" : "EXIT-SHORT")
 
         if is_long
-            strategy.close("Long", qty=math.abs(partial_qty), comment="TP1")
+            strategy.close("Long", qty=math.abs(partial_qty), comment=code)
         else
-            strategy.close("Short", qty=math.abs(partial_qty), comment="TP1")
+            strategy.close("Short", qty=math.abs(partial_qty), comment=code)
 
-        alert('{"code":"' + code + '","amountPerTrade":"' + str.tostring(math.abs(partial_qty), "#.########") + '","amountPerTradeType":"quote"}', alert.freq_once_per_bar)
         exit_alert_sent_this_bar := true
 
         partial1_taken := true
@@ -1022,11 +1011,10 @@ if usePartialTP and partial2_enabled and in_position and not partial2_taken and 
         code = get_bot_code(is_long ? "EXIT-LONG" : "EXIT-SHORT")
 
         if is_long
-            strategy.close("Long", qty=math.abs(partial_qty), comment="TP2")
+            strategy.close("Long", qty=math.abs(partial_qty), comment=code)
         else
-            strategy.close("Short", qty=math.abs(partial_qty), comment="TP2")
+            strategy.close("Short", qty=math.abs(partial_qty), comment=code)
 
-        alert('{"code":"' + code + '","amountPerTrade":"' + str.tostring(math.abs(partial_qty), "#.########") + '","amountPerTradeType":"quote"}', alert.freq_once_per_bar)
         exit_alert_sent_this_bar := true
 
         partial2_taken := true
@@ -1046,11 +1034,10 @@ if usePartialTP and partial3_enabled and in_position and not partial3_taken and 
         code = get_bot_code(is_long ? "EXIT-LONG" : "EXIT-SHORT")
 
         if is_long
-            strategy.close("Long", qty=math.abs(partial_qty), comment="TP3")
+            strategy.close("Long", qty=math.abs(partial_qty), comment=code)
         else
-            strategy.close("Short", qty=math.abs(partial_qty), comment="TP3")
+            strategy.close("Short", qty=math.abs(partial_qty), comment=code)
 
-        alert('{"code":"' + code + '","amountPerTrade":"' + str.tostring(math.abs(partial_qty), "#.########") + '","amountPerTradeType":"quote"}', alert.freq_once_per_bar)
         exit_alert_sent_this_bar := true
 
         partial3_taken := true
@@ -1070,11 +1057,10 @@ if usePartialTP and partial4_enabled and in_position and not partial4_taken and 
         code = get_bot_code(is_long ? "EXIT-LONG" : "EXIT-SHORT")
 
         if is_long
-            strategy.close("Long", qty=math.abs(partial_qty), comment="TP4")
+            strategy.close("Long", qty=math.abs(partial_qty), comment=code)
         else
-            strategy.close("Short", qty=math.abs(partial_qty), comment="TP4")
+            strategy.close("Short", qty=math.abs(partial_qty), comment=code)
 
-        alert('{"code":"' + code + '","amountPerTrade":"' + str.tostring(math.abs(partial_qty), "#.########") + '","amountPerTradeType":"quote"}', alert.freq_once_per_bar)
         exit_alert_sent_this_bar := true
 
         partial4_taken := true
@@ -1146,25 +1132,16 @@ if in_position and not na(stop_loss)
     if is_long
         if sl_active
             // SL active after cooldown period following all DCAs
-            strategy.exit("Exit Long", "Long", stop=stop_loss, comment_loss="SL✗")
+            strategy.exit("Exit Long", "Long", stop=stop_loss, comment_loss=exit_code)
         // DCAs still pending or cooldown not passed - no SL, only partial TPs
 
     if is_short
         if sl_active
             // SL active after cooldown period following all DCAs
-            strategy.exit("Exit Short", "Short", stop=stop_loss, comment_loss="SL✗")
+            strategy.exit("Exit Short", "Short", stop=stop_loss, comment_loss=exit_code)
         // DCAs still pending or cooldown not passed - no SL, only partial TPs
 
-// Exit alerts (with deduplication check)
-if strategy.position_size == 0 and strategy.position_size[1] > 0 and not exit_alert_sent_this_bar
-    code = get_bot_code("EXIT-LONG")
-    alert('{"code":"' + code + '","amountPerTrade":"' + str.tostring(math.abs(strategy.position_size[1]), "#.########") + '","amountPerTradeType":"quote"}', alert.freq_once_per_bar)
-    exit_alert_sent_this_bar := true
-
-if strategy.position_size == 0 and strategy.position_size[1] < 0 and not exit_alert_sent_this_bar
-    code = get_bot_code("EXIT-SHORT")
-    alert('{"code":"' + code + '","amountPerTrade":"' + str.tostring(math.abs(strategy.position_size[1]), "#.########") + '","amountPerTradeType":"quote"}', alert.freq_once_per_bar)
-    exit_alert_sent_this_bar := true
+// Alerts now handled via strategy.order.comment in TradingView alert settings
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 🎨 VISUALS
@@ -1415,7 +1392,23 @@ if showInfoPanel
     table.cell(panel, col, 2, "$" + str.tostring(strategy.netprofit, "#"), text_color=netCol, text_size=size.normal)
 
 // ══════════════════════════════════════════════════════════════════════════════
-// 🔔 ALERTS - Via alert() function calls only (WunderTrading compatible)
+// 🔔 ALERTS - WunderTrading Setup
 // ══════════════════════════════════════════════════════════════════════════════
-// alertcondition() är INTE kompatibelt med "alert function calls only" - alla
-// alerts hanteras nu via alert() funktionen i entry/exit logiken ovan
+//
+// Detta script är nu kompatibelt med WunderTrading via strategy.order.comment
+//
+// SETUP I TRADINGVIEW:
+// 1. Klicka på "Alert" knappen (klockan) i TradingView
+// 2. Condition: Välj din strategy name
+// 3. Webhook URL: https://wtalerts.com/bot/trading_view
+// 4. Alert message:
+//    {
+//        "code": "{{strategy.order.comment}}",
+//        "amountPerTrade": "{{strategy.order.contracts}}",
+//        "amountPerTradeType": "quote"
+//    }
+// 5. Notifications: Webhook URL (check)
+// 6. Alert name: WunderTrading (eller vad du vill)
+//
+// Bot-koden (ENTER-LONG, EXIT-SHORT, etc.) sätts automatiskt i strategy.order.comment
+// och WunderTrading läser den från {{strategy.order.comment}} placeholder
