@@ -2,7 +2,7 @@
 // © Optimized Momentum Scalper - 15M Timeframe Specialist
 
 //@version=6
-strategy("⚡ Momentum Scalper PRO v13.0 [15M Optimized]",
+strategy("⚡ Momentum Scalper PRO v13.0 [15M HYPE]",
      overlay=true,
      pyramiding=5,
      calc_on_every_tick=false,
@@ -260,8 +260,8 @@ avoidFirstBar = input.bool(true, "✓ Undvik första bar i session", group=grpSe
 grpBot = "🤖 Bot Config"
 bot_id = input.string("b5b6069f87e87df334c11c36", "🤖 Bot ID", group=grpBot)
 exchange_name = input.string("HyperLiquid", "Exchange", options=["HyperLiquid", "Binance", "Bybit", "OKX"], group=grpBot)
-pair_name = input.string("SOL-USDC", "Trading Pair", group=grpBot)
-strategy_name_bot = input.string("SOL_15M", "Strategy Name", group=grpBot)
+pair_name = input.string("HYPE-USDC", "Trading Pair", group=grpBot)
+strategy_name_bot = input.string("HYPE_15M", "Strategy Name", group=grpBot)
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 🖥️ DISPLAY SETTINGS
