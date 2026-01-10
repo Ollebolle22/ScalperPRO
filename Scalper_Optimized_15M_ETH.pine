@@ -2,7 +2,7 @@
 // © Optimized Momentum Scalper - 15M Timeframe Specialist
 
 //@version=6
-strategy("⚡ Momentum Scalper PRO v13.0 [15M ETH]",
+strategy("⚡ Momentum Scalper PRO v13.0 [15M Optimized]",
      overlay=true,
      pyramiding=5,
      calc_on_every_tick=false,
@@ -260,8 +260,8 @@ avoidFirstBar = input.bool(true, "✓ Undvik första bar i session", group=grpSe
 grpBot = "🤖 Bot Config"
 bot_id = input.string("b5b6069f87e87df334c11c36", "🤖 Bot ID", group=grpBot)
 exchange_name = input.string("HyperLiquid", "Exchange", options=["HyperLiquid", "Binance", "Bybit", "OKX"], group=grpBot)
-pair_name = input.string("ETH-USDC", "Trading Pair", group=grpBot)
-strategy_name_bot = input.string("ETH_15M", "Strategy Name", group=grpBot)
+pair_name = input.string("SOL-USDC", "Trading Pair", group=grpBot)
+strategy_name_bot = input.string("SOL_15M", "Strategy Name", group=grpBot)
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 🖥️ DISPLAY SETTINGS
@@ -730,6 +730,9 @@ if longCond and not in_position
         entry_json = build_entry_json(true, entry_qty, safe_sl, partial_tp1_price, partial_tp2_price, partial_tp3_price, partial_tp4_price)
         strategy.entry("Long", strategy.long, qty=entry_qty, comment=entry_json)
 
+        // Send alert with JSON for webhook
+        alert(entry_json, alert.freq_once_per_bar_close)
+
         if showTradeLabels
             first_tp = partial1_enabled ? partial_tp1_price : na
             rr = not na(first_tp) ? (first_tp - close) / sl_dist : 0
@@ -783,6 +786,9 @@ if shortCond and not in_position
         // Build entry JSON with all TP levels and SL
         entry_json = build_entry_json(false, entry_qty, safe_sl, partial_tp1_price, partial_tp2_price, partial_tp3_price, partial_tp4_price)
         strategy.entry("Short", strategy.short, qty=entry_qty, comment=entry_json)
+
+        // Send alert with JSON for webhook
+        alert(entry_json, alert.freq_once_per_bar_close)
 
         if showTradeLabels
             first_tp = partial1_enabled ? partial_tp1_price : na
@@ -843,6 +849,9 @@ if use_dca and in_position and dca_count < dca_max_entries
                 dca_json = build_dca_json(true, dca_qty)
                 strategy.entry("Long", strategy.long, qty=dca_qty, comment=dca_json)
 
+                // Send alert with JSON for webhook
+                alert(dca_json, alert.freq_once_per_bar_close)
+
                 if showTradeLabels
                     label.new(bar_index, low - atrValue * 1.5, "🔄 DCA#" + str.tostring(dca_count) + "\n📊 Avg: " + str.tostring(new_avg, format.mintick),
                          style=label.style_label_up, color=color.new(colDCA, 10), textcolor=color.white, size=size.normal, yloc=yloc.price)
@@ -871,6 +880,9 @@ if use_dca and in_position and dca_count < dca_max_entries
                 // Build DCA entry JSON
                 dca_json = build_dca_json(false, dca_qty)
                 strategy.entry("Short", strategy.short, qty=dca_qty, comment=dca_json)
+
+                // Send alert with JSON for webhook
+                alert(dca_json, alert.freq_once_per_bar_close)
 
                 if showTradeLabels
                     label.new(bar_index, high + atrValue * 1.5, "🔄 DCA#" + str.tostring(dca_count) + "\n📊 Avg: " + str.tostring(new_avg, format.mintick),
@@ -1059,6 +1071,9 @@ if in_position and not na(liq_price)
         // Build exit JSON for emergency close
         exit_json = build_exit_json(is_long, math.abs(strategy.position_size))
         strategy.close_all(comment=exit_json)
+
+        // Send alert with JSON for webhook
+        alert(exit_json, alert.freq_once_per_bar_close)
         exit_alert_sent_this_bar := true
 
         if showTradeLabels
