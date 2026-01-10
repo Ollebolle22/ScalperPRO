@@ -595,18 +595,18 @@ get_bot_code(action) =>
 // 📋 JSON GENERATOR FUNCTIONS FOR WUNDERTRADING
 // ══════════════════════════════════════════════════════════════════════════════
 
-// Build entry JSON with TP levels and SL
+// Build entry JSON with TP levels and SL (WunderTrading format)
 build_entry_json(is_long_entry, qty, sl_price, tp1_price, tp2_price, tp3_price, tp4_price) =>
     code = get_bot_code(is_long_entry ? "ENTER-LONG" : "ENTER-SHORT")
 
     // Start building JSON
     json = '{"code":"' + code + '",'
-    json := json + '"orderType":"Market",'
+    json := json + '"orderType":"market",'
     json := json + '"amountPerTrade":' + str.tostring(qty, '#.########') + ','
     json := json + '"amountPerTradeType":"contracts",'
     json := json + '"leverage":' + str.tostring(leverage, '#.#') + ','
 
-    // Build takeProfits array
+    // Build takeProfits array - NOTE: portfolio must be in DECIMAL form (25% = 0.25)
     json := json + '"takeProfits":['
 
     tp_count = 0
@@ -614,53 +614,66 @@ build_entry_json(is_long_entry, qty, sl_price, tp1_price, tp2_price, tp3_price, 
     if partial1_enabled and not na(tp1_price)
         if tp_count > 0
             json := json + ','
-        json := json + '{"price":' + str.tostring(tp1_price, '#.########') + ',"type":"price","portfolioPercentage":' + str.tostring(partial1_pct, '#.##') + '}'
+        // Convert percentage to decimal: 25% -> 0.25
+        portfolio_decimal = partial1_pct / 100
+        json := json + '{"price":' + str.tostring(tp1_price, '#.########') + ',"portfolio":' + str.tostring(portfolio_decimal, '#.##') + '}'
         tp_count := tp_count + 1
 
     if partial2_enabled and not na(tp2_price)
         if tp_count > 0
             json := json + ','
-        json := json + '{"price":' + str.tostring(tp2_price, '#.########') + ',"type":"price","portfolioPercentage":' + str.tostring(partial2_pct, '#.##') + '}'
+        portfolio_decimal = partial2_pct / 100
+        json := json + '{"price":' + str.tostring(tp2_price, '#.########') + ',"portfolio":' + str.tostring(portfolio_decimal, '#.##') + '}'
         tp_count := tp_count + 1
 
     if partial3_enabled and not na(tp3_price)
         if tp_count > 0
             json := json + ','
-        json := json + '{"price":' + str.tostring(tp3_price, '#.########') + ',"type":"price","portfolioPercentage":' + str.tostring(partial3_pct, '#.##') + '}'
+        portfolio_decimal = partial3_pct / 100
+        json := json + '{"price":' + str.tostring(tp3_price, '#.########') + ',"portfolio":' + str.tostring(portfolio_decimal, '#.##') + '}'
         tp_count := tp_count + 1
 
     if partial4_enabled and not na(tp4_price)
         if tp_count > 0
             json := json + ','
-        json := json + '{"price":' + str.tostring(tp4_price, '#.########') + ',"type":"price","portfolioPercentage":' + str.tostring(partial4_pct, '#.##') + '}'
+        portfolio_decimal = partial4_pct / 100
+        json := json + '{"price":' + str.tostring(tp4_price, '#.########') + ',"portfolio":' + str.tostring(portfolio_decimal, '#.##') + '}'
         tp_count := tp_count + 1
 
     json := json + '],'
 
-    // Add stopLoss
-    json := json + '"stopLoss":{"price":' + str.tostring(sl_price, '#.########') + ',"type":"price"}'
+    // Add stopLoss - WunderTrading format (no "type" field)
+    json := json + '"stopLoss":{"price":' + str.tostring(sl_price, '#.########') + '},'
+
+    // Add additional parameters
+    json := json + '"reduceOnly":true,'
+    json := json + '"placeConditionalOrdersOnExchange":false'
 
     json := json + '}'
     json
 
-// Build exit JSON for partial TP or full close
+// Build exit JSON for partial TP or full close (WunderTrading format)
 build_exit_json(is_long_pos, qty) =>
     code = get_bot_code(is_long_pos ? "EXIT-LONG" : "EXIT-SHORT")
 
     json = '{"code":"' + code + '",'
     json := json + '"amountPerTrade":' + str.tostring(qty, '#.########') + ','
-    json := json + '"amountPerTradeType":"contracts"'
+    json := json + '"amountPerTradeType":"contracts",'
+    json := json + '"reduceOnly":true,'
+    json := json + '"placeConditionalOrdersOnExchange":false'
     json := json + '}'
     json
 
-// Build DCA entry JSON (no TP/SL since position already exists)
+// Build DCA entry JSON (WunderTrading format - no TP/SL since position already exists)
 build_dca_json(is_long_pos, qty) =>
     code = get_bot_code(is_long_pos ? "ENTER-LONG" : "ENTER-SHORT")
 
     json = '{"code":"' + code + '",'
-    json := json + '"orderType":"Market",'
+    json := json + '"orderType":"market",'
     json := json + '"amountPerTrade":' + str.tostring(qty, '#.########') + ','
-    json := json + '"amountPerTradeType":"contracts"'
+    json := json + '"amountPerTradeType":"contracts",'
+    json := json + '"reduceOnly":false,'
+    json := json + '"placeConditionalOrdersOnExchange":false'
     json := json + '}'
     json
 
