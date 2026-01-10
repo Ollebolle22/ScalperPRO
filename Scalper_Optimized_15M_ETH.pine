@@ -592,6 +592,79 @@ get_bot_code(action) =>
     action + "_" + exchange_name + "_" + pair_name + "_" + strategy_name_bot + "_" + bot_id
 
 // ══════════════════════════════════════════════════════════════════════════════
+// 📋 JSON GENERATOR FUNCTIONS FOR WUNDERTRADING
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Build entry JSON with TP levels and SL
+build_entry_json(is_long_entry, qty, sl_price, tp1_price, tp2_price, tp3_price, tp4_price) =>
+    code = get_bot_code(is_long_entry ? "ENTER-LONG" : "ENTER-SHORT")
+
+    // Start building JSON
+    json = '{"code":"' + code + '",'
+    json := json + '"orderType":"Market",'
+    json := json + '"amountPerTrade":' + str.tostring(qty, '#.########') + ','
+    json := json + '"amountPerTradeType":"contracts",'
+    json := json + '"leverage":' + str.tostring(leverage, '#.#') + ','
+
+    // Build takeProfits array
+    json := json + '"takeProfits":['
+
+    tp_count = 0
+
+    if partial1_enabled and not na(tp1_price)
+        if tp_count > 0
+            json := json + ','
+        json := json + '{"price":' + str.tostring(tp1_price, '#.########') + ',"type":"price","portfolioPercentage":' + str.tostring(partial1_pct, '#.##') + '}'
+        tp_count := tp_count + 1
+
+    if partial2_enabled and not na(tp2_price)
+        if tp_count > 0
+            json := json + ','
+        json := json + '{"price":' + str.tostring(tp2_price, '#.########') + ',"type":"price","portfolioPercentage":' + str.tostring(partial2_pct, '#.##') + '}'
+        tp_count := tp_count + 1
+
+    if partial3_enabled and not na(tp3_price)
+        if tp_count > 0
+            json := json + ','
+        json := json + '{"price":' + str.tostring(tp3_price, '#.########') + ',"type":"price","portfolioPercentage":' + str.tostring(partial3_pct, '#.##') + '}'
+        tp_count := tp_count + 1
+
+    if partial4_enabled and not na(tp4_price)
+        if tp_count > 0
+            json := json + ','
+        json := json + '{"price":' + str.tostring(tp4_price, '#.########') + ',"type":"price","portfolioPercentage":' + str.tostring(partial4_pct, '#.##') + '}'
+        tp_count := tp_count + 1
+
+    json := json + '],'
+
+    // Add stopLoss
+    json := json + '"stopLoss":{"price":' + str.tostring(sl_price, '#.########') + ',"type":"price"}'
+
+    json := json + '}'
+    json
+
+// Build exit JSON for partial TP or full close
+build_exit_json(is_long_pos, qty) =>
+    code = get_bot_code(is_long_pos ? "EXIT-LONG" : "EXIT-SHORT")
+
+    json = '{"code":"' + code + '",'
+    json := json + '"amountPerTrade":' + str.tostring(qty, '#.########') + ','
+    json := json + '"amountPerTradeType":"contracts"'
+    json := json + '}'
+    json
+
+// Build DCA entry JSON (no TP/SL since position already exists)
+build_dca_json(is_long_pos, qty) =>
+    code = get_bot_code(is_long_pos ? "ENTER-LONG" : "ENTER-SHORT")
+
+    json = '{"code":"' + code + '",'
+    json := json + '"orderType":"Market",'
+    json := json + '"amountPerTrade":' + str.tostring(qty, '#.########') + ','
+    json := json + '"amountPerTradeType":"contracts"'
+    json := json + '}'
+    json
+
+// ══════════════════════════════════════════════════════════════════════════════
 // 🚀 ENTRIES
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -640,8 +713,9 @@ if longCond and not in_position
         base_qty := entry_qty
         total_qty := entry_qty
 
-        code = get_bot_code("ENTER-LONG")
-        strategy.entry("Long", strategy.long, qty=entry_qty, comment=code)
+        // Build entry JSON with all TP levels and SL
+        entry_json = build_entry_json(true, entry_qty, safe_sl, partial_tp1_price, partial_tp2_price, partial_tp3_price, partial_tp4_price)
+        strategy.entry("Long", strategy.long, qty=entry_qty, comment=entry_json)
 
         if showTradeLabels
             first_tp = partial1_enabled ? partial_tp1_price : na
@@ -693,8 +767,9 @@ if shortCond and not in_position
         base_qty := entry_qty
         total_qty := entry_qty
 
-        code = get_bot_code("ENTER-SHORT")
-        strategy.entry("Short", strategy.short, qty=entry_qty, comment=code)
+        // Build entry JSON with all TP levels and SL
+        entry_json = build_entry_json(false, entry_qty, safe_sl, partial_tp1_price, partial_tp2_price, partial_tp3_price, partial_tp4_price)
+        strategy.entry("Short", strategy.short, qty=entry_qty, comment=entry_json)
 
         if showTradeLabels
             first_tp = partial1_enabled ? partial_tp1_price : na
@@ -751,8 +826,9 @@ if use_dca and in_position and dca_count < dca_max_entries
                 dca_count += 1
                 bars_since_last_dca := 0  // Reset cooldown
 
-                code = get_bot_code("ENTER-LONG")
-                strategy.entry("Long", strategy.long, qty=dca_qty, comment=code)
+                // Build DCA entry JSON
+                dca_json = build_dca_json(true, dca_qty)
+                strategy.entry("Long", strategy.long, qty=dca_qty, comment=dca_json)
 
                 if showTradeLabels
                     label.new(bar_index, low - atrValue * 1.5, "🔄 DCA#" + str.tostring(dca_count) + "\n📊 Avg: " + str.tostring(new_avg, format.mintick),
@@ -779,8 +855,9 @@ if use_dca and in_position and dca_count < dca_max_entries
                 dca_count += 1
                 bars_since_last_dca := 0  // Reset cooldown
 
-                code = get_bot_code("ENTER-SHORT")
-                strategy.entry("Short", strategy.short, qty=dca_qty, comment=code)
+                // Build DCA entry JSON
+                dca_json = build_dca_json(false, dca_qty)
+                strategy.entry("Short", strategy.short, qty=dca_qty, comment=dca_json)
 
                 if showTradeLabels
                     label.new(bar_index, high + atrValue * 1.5, "🔄 DCA#" + str.tostring(dca_count) + "\n📊 Avg: " + str.tostring(new_avg, format.mintick),
@@ -966,8 +1043,9 @@ if in_position and not na(liq_price)
     dist_to_liq = is_long ? (close - liq_price) / close * 100 : (liq_price - close) / close * 100
 
     if dist_to_liq < min_liq_distance
-        code = get_bot_code(is_long ? "EXIT-LONG" : "EXIT-SHORT")
-        strategy.close_all(comment=code)
+        // Build exit JSON for emergency close
+        exit_json = build_exit_json(is_long, math.abs(strategy.position_size))
+        strategy.close_all(comment=exit_json)
         exit_alert_sent_this_bar := true
 
         if showTradeLabels
@@ -985,12 +1063,14 @@ if usePartialTP and partial1_enabled and in_position and not partial1_taken and 
     if partial1_hit
         // Använd total_qty (ursprunglig + DCAs) istället för strategy.position_size (kvarvarande)
         partial_qty = total_qty * (partial1_pct / 100)
-        code = get_bot_code(is_long ? "EXIT-LONG" : "EXIT-SHORT")
+
+        // Build exit JSON for partial TP
+        exit_json = build_exit_json(is_long, math.abs(partial_qty))
 
         if is_long
-            strategy.close("Long", qty=math.abs(partial_qty), comment=code)
+            strategy.close("Long", qty=math.abs(partial_qty), comment=exit_json)
         else
-            strategy.close("Short", qty=math.abs(partial_qty), comment=code)
+            strategy.close("Short", qty=math.abs(partial_qty), comment=exit_json)
 
         exit_alert_sent_this_bar := true
 
@@ -1008,12 +1088,14 @@ if usePartialTP and partial2_enabled and in_position and not partial2_taken and 
     if partial2_hit
         // Använd total_qty (ursprunglig + DCAs) istället för strategy.position_size (kvarvarande)
         partial_qty = total_qty * (partial2_pct / 100)
-        code = get_bot_code(is_long ? "EXIT-LONG" : "EXIT-SHORT")
+
+        // Build exit JSON for partial TP
+        exit_json = build_exit_json(is_long, math.abs(partial_qty))
 
         if is_long
-            strategy.close("Long", qty=math.abs(partial_qty), comment=code)
+            strategy.close("Long", qty=math.abs(partial_qty), comment=exit_json)
         else
-            strategy.close("Short", qty=math.abs(partial_qty), comment=code)
+            strategy.close("Short", qty=math.abs(partial_qty), comment=exit_json)
 
         exit_alert_sent_this_bar := true
 
@@ -1031,12 +1113,14 @@ if usePartialTP and partial3_enabled and in_position and not partial3_taken and 
     if partial3_hit
         // Använd total_qty (ursprunglig + DCAs) istället för strategy.position_size (kvarvarande)
         partial_qty = total_qty * (partial3_pct / 100)
-        code = get_bot_code(is_long ? "EXIT-LONG" : "EXIT-SHORT")
+
+        // Build exit JSON for partial TP
+        exit_json = build_exit_json(is_long, math.abs(partial_qty))
 
         if is_long
-            strategy.close("Long", qty=math.abs(partial_qty), comment=code)
+            strategy.close("Long", qty=math.abs(partial_qty), comment=exit_json)
         else
-            strategy.close("Short", qty=math.abs(partial_qty), comment=code)
+            strategy.close("Short", qty=math.abs(partial_qty), comment=exit_json)
 
         exit_alert_sent_this_bar := true
 
@@ -1054,12 +1138,14 @@ if usePartialTP and partial4_enabled and in_position and not partial4_taken and 
     if partial4_hit
         // Använd total_qty (ursprunglig + DCAs) istället för strategy.position_size (kvarvarande)
         partial_qty = total_qty * (partial4_pct / 100)
-        code = get_bot_code(is_long ? "EXIT-LONG" : "EXIT-SHORT")
+
+        // Build exit JSON for partial TP
+        exit_json = build_exit_json(is_long, math.abs(partial_qty))
 
         if is_long
-            strategy.close("Long", qty=math.abs(partial_qty), comment=code)
+            strategy.close("Long", qty=math.abs(partial_qty), comment=exit_json)
         else
-            strategy.close("Short", qty=math.abs(partial_qty), comment=code)
+            strategy.close("Short", qty=math.abs(partial_qty), comment=exit_json)
 
         exit_alert_sent_this_bar := true
 
@@ -1127,18 +1213,19 @@ sl_cooldown_passed = bars_since_all_dcas_complete >= sl_cooldown_after_dca
 sl_active = in_position and (not use_dca or (dca_count >= dca_max_entries and sl_cooldown_passed))
 
 if in_position and not na(stop_loss)
-    exit_code = get_bot_code(is_long ? "EXIT-LONG" : "EXIT-SHORT")
+    // Build exit JSON for SL
+    exit_json = build_exit_json(is_long, math.abs(strategy.position_size))
 
     if is_long
         if sl_active
             // SL active after cooldown period following all DCAs
-            strategy.exit("Exit Long", "Long", stop=stop_loss, comment_loss=exit_code)
+            strategy.exit("Exit Long", "Long", stop=stop_loss, comment_loss=exit_json)
         // DCAs still pending or cooldown not passed - no SL, only partial TPs
 
     if is_short
         if sl_active
             // SL active after cooldown period following all DCAs
-            strategy.exit("Exit Short", "Short", stop=stop_loss, comment_loss=exit_code)
+            strategy.exit("Exit Short", "Short", stop=stop_loss, comment_loss=exit_json)
         // DCAs still pending or cooldown not passed - no SL, only partial TPs
 
 // Alerts now handled via strategy.order.comment in TradingView alert settings
