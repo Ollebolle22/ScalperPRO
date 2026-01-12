@@ -1,0 +1,261 @@
+//@version=6
+strategy("⚡ Fast Momentum Scalper 1M",
+         shorttitle="FMS1M",
+         overlay=true,
+         pyramiding=0,
+         calc_on_every_tick=false,
+         process_orders_on_close=true,
+         default_qty_type=strategy.percent_of_equity,
+         default_qty_value=95,
+         initial_capital=1000,
+         currency=currency.USD,
+         commission_type=strategy.commission.percent,
+         commission_value=0.06,
+         slippage=2)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 📊 STRATEGI BESKRIVNING
+// ═══════════════════════════════════════════════════════════════════════════════
+// Snabb momentum scalper för 1-minuters timeframe
+// - Använder RSI + EMA för momentum-signaler
+// - Enkel stoploss och takeprofit (ingen uppdelning)
+// - Ingen DCA - ren scalping
+// - Optimerad för crypto med 5x leverage
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ⚙️ INSTÄLLNINGAR
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// 💰 Kapital & Leverage
+leverage = input.float(5.0, "Leverage", minval=1.0, maxval=20.0, step=0.5, group="💰 Kapital & Leverage", tooltip="Trading leverage (5x rekommenderat för scalping)")
+position_size_pct = input.float(95.0, "Position Size %", minval=10, maxval=100, step=5, group="💰 Kapital & Leverage", tooltip="Procent av equity att använda per trade")
+
+// 📈 EMA Inställningar
+ema_fast_length = input.int(9, "EMA Fast", minval=5, maxval=21, group="📈 EMA Inställningar", tooltip="Snabb EMA för momentum (9 för 1min)")
+ema_slow_length = input.int(21, "EMA Slow", minval=13, maxval=50, group="📈 EMA Inställningar", tooltip="Långsam EMA för trend (21 för 1min)")
+ema_trend_length = input.int(50, "EMA Trend", minval=21, maxval=200, group="📈 EMA Inställningar", tooltip="Trend filter EMA (50 för 1min)")
+
+// 🎯 RSI Momentum
+rsi_length = input.int(14, "RSI Period", minval=7, maxval=21, group="🎯 RSI Momentum", tooltip="RSI period för momentum")
+rsi_momentum_threshold = input.int(50, "RSI Momentum Threshold", minval=40, maxval=60, group="🎯 RSI Momentum", tooltip="RSI nivå för momentum (50 = neutral)")
+
+// 💪 ADX Trend Strength
+adx_length = input.int(14, "ADX Period", minval=7, maxval=21, group="💪 ADX Trend Strength", tooltip="ADX period")
+adx_threshold = input.float(20.0, "ADX Minimum", minval=15.0, maxval=30.0, step=1.0, group="💪 ADX Trend Strength", tooltip="Minimum ADX för att ta trades")
+
+// 📦 Volume Filter
+volume_multiplier = input.float(1.2, "Volume Multiplier", minval=1.0, maxval=2.0, step=0.1, group="📦 Volume Filter", tooltip="Minimum volume vs MA (1.2 = 20% över genomsnitt)")
+volume_ma_length = input.int(20, "Volume MA Period", minval=10, maxval=50, group="📦 Volume Filter", tooltip="Period för volume moving average")
+
+// 🎯 Risk Management (Enkel SL/TP)
+atr_length = input.int(14, "ATR Period", minval=7, maxval=21, group="🎯 Risk Management", tooltip="ATR period för SL/TP beräkning")
+sl_atr_multiplier = input.float(1.5, "Stop Loss (ATR x)", minval=0.5, maxval=3.0, step=0.1, group="🎯 Risk Management", tooltip="Stop loss distans (ATR multiplier)")
+tp_atr_multiplier = input.float(2.5, "Take Profit (ATR x)", minval=1.0, maxval=5.0, step=0.1, group="🎯 Risk Management", tooltip="Take profit distans (ATR multiplier)")
+
+// 🤖 Bot Configuration (WunderTrading)
+bot_id = input.string("your_bot_id_here", "Bot ID", group="🤖 Bot Config", tooltip="WunderTrading bot ID")
+exchange_name = input.string("HyperLiquid", "Exchange", options=["HyperLiquid", "Binance", "Bybit", "OKX"], group="🤖 Bot Config")
+pair_name = input.string("SOL-USDC", "Trading Pair", group="🤖 Bot Config", tooltip="Format: BTC-USDT, ETH-USDC, etc.")
+strategy_name_bot = input.string("FMS_1M", "Strategy Name", group="🤖 Bot Config", tooltip="Kort namn för strategin")
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 📊 INDIKATORER
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// EMA beräkningar
+ema_fast = ta.ema(close, ema_fast_length)
+ema_slow = ta.ema(close, ema_slow_length)
+ema_trend = ta.ema(close, ema_trend_length)
+
+// RSI för momentum
+rsi = ta.rsi(close, rsi_length)
+rsi_prev = ta.rsi(close[1], rsi_length)
+
+// ADX för trend styrka
+[diPlus, diMinus, adx] = ta.dmi(adx_length, adx_length)
+
+// ATR för volatilitet och SL/TP
+atr = ta.atr(atr_length)
+
+// Volume filter
+volume_ma = ta.sma(volume, volume_ma_length)
+volume_ok = volume > volume_ma * volume_multiplier
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🎯 ENTRY CONDITIONS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Momentum conditions
+bullish_momentum = rsi > rsi_momentum_threshold and rsi > rsi_prev
+bearish_momentum = rsi < rsi_momentum_threshold and rsi < rsi_prev
+
+// EMA crossovers
+ema_bull_cross = ta.crossover(ema_fast, ema_slow)
+ema_bear_cross = ta.crossunder(ema_fast, ema_slow)
+
+// EMA alignment
+price_above_trend = close > ema_trend
+price_below_trend = close < ema_trend
+ema_bullish = ema_fast > ema_slow
+ema_bearish = ema_fast < ema_slow
+
+// Trend strength
+strong_trend = adx >= adx_threshold
+
+// LONG Entry Conditions
+long_condition = ema_bull_cross and
+                 bullish_momentum and
+                 price_above_trend and
+                 strong_trend and
+                 volume_ok and
+                 strategy.position_size == 0
+
+// SHORT Entry Conditions
+short_condition = ema_bear_cross and
+                  bearish_momentum and
+                  price_below_trend and
+                  strong_trend and
+                  volume_ok and
+                  strategy.position_size == 0
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 💼 POSITION MANAGEMENT
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Calculate position size (contracts)
+equity = strategy.equity
+position_value = (equity * position_size_pct / 100) * leverage
+contracts = position_value / close
+
+// SL/TP levels
+long_sl = close - (atr * sl_atr_multiplier)
+long_tp = close + (atr * tp_atr_multiplier)
+
+short_sl = close + (atr * sl_atr_multiplier)
+short_tp = close - (atr * tp_atr_multiplier)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🔔 ALERT MESSAGE BUILDER (WunderTrading Format)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Build bot code
+build_code(action) =>
+    action + "_" + exchange_name + "_" + pair_name + "_" + strategy_name_bot + "_" + bot_id
+
+// Build alert message for entry
+build_entry_alert(direction, sl_price, tp_price, qty) =>
+    code = build_code(direction)
+    '{\n' +
+     '  "code": "' + code + '",\n' +
+     '  "orderType": "market",\n' +
+     '  "amountPerTrade": ' + str.tostring(qty, "#.####") + ',\n' +
+     '  "amountPerTradeType": "contracts",\n' +
+     '  "leverage": ' + str.tostring(leverage, "#.#") + ',\n' +
+     '  "stopLoss": {"price": ' + str.tostring(sl_price, "#.####") + '},\n' +
+     '  "takeProfit": {"price": ' + str.tostring(tp_price, "#.####") + '},\n' +
+     '  "reduceOnly": false,\n' +
+     '  "placeConditionalOrdersOnExchange": false\n' +
+     '}'
+
+// Build alert message for exit
+build_exit_alert(direction, qty) =>
+    code = build_code(direction)
+    '{\n' +
+     '  "code": "' + code + '",\n' +
+     '  "amountPerTrade": ' + str.tostring(qty, "#.####") + ',\n' +
+     '  "amountPerTradeType": "contracts",\n' +
+     '  "reduceOnly": true,\n' +
+     '  "placeConditionalOrdersOnExchange": false\n' +
+     '}'
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 📈 STRATEGY EXECUTION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// LONG Entry
+if long_condition
+    alert_msg = build_entry_alert("ENTER-LONG", long_sl, long_tp, contracts)
+    strategy.entry("LONG", strategy.long, qty=contracts, comment=build_code("ENTER-LONG"), alert_message=alert_msg)
+    strategy.exit("LONG_EXIT", "LONG", stop=long_sl, limit=long_tp, comment=build_code("EXIT-LONG"), alert_message=build_exit_alert("EXIT-LONG", contracts))
+
+// SHORT Entry
+if short_condition
+    alert_msg = build_entry_alert("ENTER-SHORT", short_sl, short_tp, contracts)
+    strategy.entry("SHORT", strategy.short, qty=contracts, comment=build_code("ENTER-SHORT"), alert_message=alert_msg)
+    strategy.exit("SHORT_EXIT", "SHORT", stop=short_sl, limit=short_tp, comment=build_code("EXIT-SHORT"), alert_message=build_exit_alert("EXIT-SHORT", contracts))
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🎨 VISUALISERING
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Plot EMAs
+plot(ema_fast, "EMA Fast", color=color.new(color.yellow, 0), linewidth=2)
+plot(ema_slow, "EMA Slow", color=color.new(color.orange, 0), linewidth=2)
+plot(ema_trend, "EMA Trend", color=color.new(color.blue, 0), linewidth=2)
+
+// Plot entry signals
+plotshape(long_condition, "LONG", shape.triangleup, location.belowbar, color.new(color.green, 0), size=size.small)
+plotshape(short_condition, "SHORT", shape.triangledown, location.abovebar, color.new(color.red, 0), size=size.small)
+
+// Background color för trend
+bgcolor(price_above_trend and ema_bullish ? color.new(color.green, 95) : price_below_trend and ema_bearish ? color.new(color.red, 95) : na)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 📊 DASHBOARD INFO
+// ═══════════════════════════════════════════════════════════════════════════════
+
+var table dashboard = table.new(position.top_right, 2, 10, border_width=2, border_color=color.gray, frame_color=color.gray, frame_width=1)
+
+if barstate.islast
+    // Header
+    table.cell(dashboard, 0, 0, "⚡ Fast Momentum Scalper 1M", text_color=color.white, bgcolor=color.new(color.blue, 30), text_size=size.normal)
+    table.merge_cells(dashboard, 0, 0, 1, 0)
+
+    // RSI
+    rsi_color = rsi > 60 ? color.green : rsi < 40 ? color.red : color.gray
+    table.cell(dashboard, 0, 1, "RSI", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    table.cell(dashboard, 1, 1, str.tostring(rsi, "#.##"), text_color=color.white, bgcolor=color.new(rsi_color, 70), text_size=size.small)
+
+    // ADX
+    adx_color = adx >= adx_threshold ? color.green : color.red
+    table.cell(dashboard, 0, 2, "ADX", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    table.cell(dashboard, 1, 2, str.tostring(adx, "#.##"), text_color=color.white, bgcolor=color.new(adx_color, 70), text_size=size.small)
+
+    // ATR
+    table.cell(dashboard, 0, 3, "ATR", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    table.cell(dashboard, 1, 3, str.tostring(atr, "#.####"), text_color=color.white, bgcolor=color.new(color.blue, 70), text_size=size.small)
+
+    // Volume
+    vol_color = volume_ok ? color.green : color.red
+    table.cell(dashboard, 0, 4, "Volume OK", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    table.cell(dashboard, 1, 4, volume_ok ? "✓" : "✗", text_color=color.white, bgcolor=color.new(vol_color, 70), text_size=size.small)
+
+    // Trend
+    trend_text = price_above_trend ? "BULL" : "BEAR"
+    trend_color = price_above_trend ? color.green : color.red
+    table.cell(dashboard, 0, 5, "Trend", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    table.cell(dashboard, 1, 5, trend_text, text_color=color.white, bgcolor=color.new(trend_color, 70), text_size=size.small)
+
+    // Position
+    pos_size = strategy.position_size
+    pos_text = pos_size > 0 ? "LONG" : pos_size < 0 ? "SHORT" : "NONE"
+    pos_color = pos_size > 0 ? color.green : pos_size < 0 ? color.red : color.gray
+    table.cell(dashboard, 0, 6, "Position", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    table.cell(dashboard, 1, 6, pos_text, text_color=color.white, bgcolor=color.new(pos_color, 70), text_size=size.small)
+
+    // P&L
+    pnl_pct = strategy.openprofit / strategy.equity * 100
+    pnl_color = pnl_pct > 0 ? color.green : pnl_pct < 0 ? color.red : color.gray
+    table.cell(dashboard, 0, 7, "Open P&L %", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    table.cell(dashboard, 1, 7, str.tostring(pnl_pct, "#.##") + "%", text_color=color.white, bgcolor=color.new(pnl_color, 70), text_size=size.small)
+
+    // Win Rate
+    win_rate = strategy.wintrades / math.max(strategy.closedtrades, 1) * 100
+    wr_color = win_rate >= 50 ? color.green : color.red
+    table.cell(dashboard, 0, 8, "Win Rate", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    table.cell(dashboard, 1, 8, str.tostring(win_rate, "#.#") + "%", text_color=color.white, bgcolor=color.new(wr_color, 70), text_size=size.small)
+
+    // Total Trades
+    table.cell(dashboard, 0, 9, "Trades", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    table.cell(dashboard, 1, 9, str.tostring(strategy.closedtrades), text_color=color.white, bgcolor=color.new(color.blue, 70), text_size=size.small)
