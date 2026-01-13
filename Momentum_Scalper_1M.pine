@@ -16,7 +16,7 @@ strategy("⚡ Fast Momentum Scalper 1M",
 // ═══════════════════════════════════════════════════════════════════════════════
 // 📊 STRATEGI BESKRIVNING
 // ═══════════════════════════════════════════════════════════════════════════════
-// AGGRESSIV momentum scalper för 1-minuters timeframe
+// MOMENTUM SCALPER med TRAILING STOP för långsiktig lönsamhet
 // - RSI zones (35-75 för longs) BREDA för fler trades
 // - EMA full alignment + EMA crossover
 // - ADX ≥18 (LÅGT för fler trades) - KAN DISABLAS!
@@ -24,6 +24,13 @@ strategy("⚡ Fast Momentum Scalper 1M",
 // - MACD DISABLED som default - Aktivera om du vill färre trades
 // - Position size 10% med 5x leverage = 50% exponering
 // - SL (2.0 ATR) och TP (3.0 ATR) = 1:1.5 R:R
+//
+// **NYA FEATURES för lönsamhet:**
+// ✅ TRAILING STOP - Låter vinster löpa längre (aktiveras vid 1.5R)
+// ✅ BREAKEVEN MOVE - Skyddar vinster (flyttas vid 1.2R)
+// ✅ STARKARE TREND FILTER - Option för endast starka trends (ADX 28+)
+// ✅ PRICE TREND FILTER - Kräver pris över/under trend-EMA
+//
 // - INGEN cooling period = kontinuerlig trading!
 // - Tar både longs och shorts aggressivt
 // - Commission 0.045%
@@ -69,6 +76,20 @@ use_volume = input.bool(true, "Use Volume Filter", group="📦 Volume Filter", t
 atr_length = input.int(14, "ATR Period", minval=7, maxval=21, group="🎯 Risk Management", tooltip="ATR period för SL/TP beräkning")
 sl_atr_multiplier = input.float(2.0, "Stop Loss (ATR x)", minval=1.0, maxval=3.0, step=0.1, group="🎯 Risk Management", tooltip="Stop loss distans (ATR multiplier)")
 tp_atr_multiplier = input.float(3.0, "Take Profit (ATR x)", minval=2.0, maxval=8.0, step=0.5, group="🎯 Risk Management", tooltip="Take profit distans (lägre = lättare att nå)")
+
+// 🎯 Trailing Stop & Breakeven
+use_trailing = input.bool(true, "Use Trailing Stop", group="🎯 Trailing & Breakeven", tooltip="Aktivera trailing stop för att låta vinster löpa")
+trailing_activation = input.float(1.5, "Trailing Activation (R)", minval=0.5, maxval=5.0, step=0.5, group="🎯 Trailing & Breakeven", tooltip="Aktivera trailing vid X × risk (1.5 = 1.5R profit)")
+trailing_distance = input.float(1.2, "Trailing Distance (ATR x)", minval=0.5, maxval=3.0, step=0.1, group="🎯 Trailing & Breakeven", tooltip="Trailing stop distans i ATR")
+
+use_breakeven = input.bool(true, "Use Breakeven Move", group="🎯 Trailing & Breakeven", tooltip="Flytta SL till break-even vid profit")
+breakeven_activation = input.float(1.2, "Breakeven at (R)", minval=0.5, maxval=3.0, step=0.1, group="🎯 Trailing & Breakeven", tooltip="Flytta till breakeven vid X × risk")
+breakeven_buffer = input.float(0.1, "Breakeven Buffer (ATR x)", minval=0.0, maxval=0.5, step=0.05, group="🎯 Trailing & Breakeven", tooltip="Buffer över break-even för fees")
+
+// 📈 Starkare Trend Filter
+use_strong_trend_only = input.bool(false, "Only Trade Strong Trends", group="📈 Starkare Trend Filter", tooltip="Kräv MYCKET stark trend (högre ADX + pristrendfilter)")
+strong_adx_threshold = input.float(28.0, "Strong Trend ADX", minval=20.0, maxval=40.0, step=1.0, group="📈 Starkare Trend Filter", tooltip="ADX nivå för stark trend (28+ = mycket starkt)")
+use_price_trend_filter = input.bool(true, "Price Trend Filter", group="📈 Starkare Trend Filter", tooltip="Kräv att priset är över/under långsiktig EMA")
 
 // ⏰ Cooling Period
 bars_between_trades = input.int(0, "Bars Between Trades", minval=0, maxval=20, group="⏰ Timing", tooltip="Bars mellan trades (0 = DISABLED för kontinuerlig trading)")
@@ -138,15 +159,24 @@ ema_full_bear_align = ema_fast < ema_slow and ema_slow < ema_trend
 // Trend strength (om enabled)
 strong_trend = use_adx ? (adx >= adx_threshold) : true
 
+// Extra stark trend filter (om enabled)
+very_strong_trend = use_strong_trend_only ? (adx >= strong_adx_threshold) : true
+
+// Price trend filter - Priset måste vara på rätt sida av trend EMA
+price_trend_ok_long = use_price_trend_filter ? (close > ema_trend and ema_slow > ema_trend) : true
+price_trend_ok_short = use_price_trend_filter ? (close < ema_trend and ema_slow < ema_trend) : true
+
 // MACD confirmation (om enabled)
 macd_ok_long = use_macd ? (macd_bullish or macd_bull_cross) : true
 macd_ok_short = use_macd ? (macd_bearish or macd_bear_cross) : true
 
-// LONG Entry Conditions (AGGRESSIV - fler trades!)
+// LONG Entry Conditions
 long_condition = ema_bull_cross and
                  bullish_momentum and
                  ema_full_bull_align and
                  strong_trend and
+                 very_strong_trend and
+                 price_trend_ok_long and
                  volume_ok and
                  macd_ok_long and
                  cooling_ok and
@@ -157,6 +187,8 @@ short_condition = ema_bear_cross and
                   bearish_momentum and
                   ema_full_bear_align and
                   strong_trend and
+                  very_strong_trend and
+                  price_trend_ok_short and
                   volume_ok and
                   macd_ok_short and
                   cooling_ok and
@@ -220,17 +252,61 @@ build_exit_alert(direction, qty) =>
 if strategy.position_size[1] != 0 and strategy.position_size == 0
     last_exit_bar := bar_index
 
+// Variables för entry price och risk
+var float entry_price = 0.0
+var float risk_amount = 0.0
+
 // LONG Entry
 if long_condition
+    entry_price := close
+    risk_amount := atr * sl_atr_multiplier
     alert_msg = build_entry_alert("ENTER-LONG", long_sl, long_tp, contracts)
     strategy.entry("LONG", strategy.long, qty=contracts, comment=build_code("ENTER-LONG"), alert_message=alert_msg)
+    // Initial exit med static TP
     strategy.exit("LONG_EXIT", "LONG", stop=long_sl, limit=long_tp, comment=build_code("EXIT-LONG"), alert_message=build_exit_alert("EXIT-LONG", contracts))
 
 // SHORT Entry
 if short_condition
+    entry_price := close
+    risk_amount := atr * sl_atr_multiplier
     alert_msg = build_entry_alert("ENTER-SHORT", short_sl, short_tp, contracts)
     strategy.entry("SHORT", strategy.short, qty=contracts, comment=build_code("ENTER-SHORT"), alert_message=alert_msg)
+    // Initial exit med static TP
     strategy.exit("SHORT_EXIT", "SHORT", stop=short_sl, limit=short_tp, comment=build_code("EXIT-SHORT"), alert_message=build_exit_alert("EXIT-SHORT", contracts))
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🎯 TRAILING STOP & BREAKEVEN MANAGEMENT
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// LONG Position Management
+if strategy.position_size > 0
+    profit_points = close - entry_price
+    profit_in_r = profit_points / risk_amount
+
+    // Breakeven move
+    if use_breakeven and profit_in_r >= breakeven_activation
+        breakeven_price = entry_price + (atr * breakeven_buffer)
+        strategy.exit("LONG_EXIT", "LONG", stop=breakeven_price, limit=long_tp, comment=build_code("EXIT-LONG"), alert_message=build_exit_alert("EXIT-LONG", contracts))
+
+    // Trailing stop (aktiveras om breakeven redan körts eller om profit är tillräckligt)
+    if use_trailing and profit_in_r >= trailing_activation
+        trail_offset = atr * trailing_distance
+        strategy.exit("LONG_EXIT", "LONG", stop=close - trail_offset, limit=long_tp, trail_offset=trail_offset, comment=build_code("EXIT-LONG"), alert_message=build_exit_alert("EXIT-LONG", contracts))
+
+// SHORT Position Management
+if strategy.position_size < 0
+    profit_points = entry_price - close
+    profit_in_r = profit_points / risk_amount
+
+    // Breakeven move
+    if use_breakeven and profit_in_r >= breakeven_activation
+        breakeven_price = entry_price - (atr * breakeven_buffer)
+        strategy.exit("SHORT_EXIT", "SHORT", stop=breakeven_price, limit=short_tp, comment=build_code("EXIT-SHORT"), alert_message=build_exit_alert("EXIT-SHORT", contracts))
+
+    // Trailing stop
+    if use_trailing and profit_in_r >= trailing_activation
+        trail_offset = atr * trailing_distance
+        strategy.exit("SHORT_EXIT", "SHORT", stop=close + trail_offset, limit=short_tp, trail_offset=trail_offset, comment=build_code("EXIT-SHORT"), alert_message=build_exit_alert("EXIT-SHORT", contracts))
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 🎨 VISUALISERING
