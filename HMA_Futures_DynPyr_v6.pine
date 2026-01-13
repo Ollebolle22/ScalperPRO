@@ -125,54 +125,46 @@ if isShortRise
 
 // === EXIT MANAGEMENT ===
 // LONG Position Management
-if strategy.position_size > 0 and longRiskAmount > 0
-    profitPoints = close - initialLongEntryPrice
-    profitInR = profitPoints / longRiskAmount
+if strategy.position_size > 0
+    // Beräkna profit i R (med skydd mot division by zero)
+    longProfitInR = longRiskAmount > 0 ? (close - initialLongEntryPrice) / longRiskAmount : 0
 
-    // Initial stop loss
-    initialSL = initialLongEntryPrice - (atr * slAtrMult)
+    // Beräkna SL-nivå baserat på current state
+    longStopPrice = initialLongEntryPrice - (atr * slAtrMult)  // Default initial SL
 
-    // TP-nivå för trailing
+    // Om breakeven är aktiverad och profiten är tillräcklig, flytta SL till breakeven
+    if useBreakeven and longProfitInR >= breakevenActivation
+        longStopPrice := initialLongEntryPrice + (atr * breakevenBuffer)
+
+    // Om trailing är aktiverat (pris över TP), använd trailing istället
     longTpPrice = strategy.position_avg_price + atr * atrMultTP
-    longTrailOffset = longTpPrice * (trailOffsetPct / 100)
-
-    // Breakeven move
-    if useBreakeven and profitInR >= breakevenActivation
-        breakevenPrice = initialLongEntryPrice + (atr * breakevenBuffer)
-        strategy.exit("LONG_EXIT", from_entry="LONG", stop=breakevenPrice)
-
-    // Trailing stop (aktiveras när TP nås)
-    else if close >= longTpPrice
+    if close >= longTpPrice
+        longTrailOffset = longTpPrice * (trailOffsetPct / 100)
         strategy.exit("LONG_EXIT", from_entry="LONG", trail_price=close, trail_offset=longTrailOffset)
-
-    // Initial SL
     else
-        strategy.exit("LONG_EXIT", from_entry="LONG", stop=initialSL)
+        // Använd stop loss (antingen initial eller breakeven)
+        strategy.exit("LONG_EXIT", from_entry="LONG", stop=longStopPrice)
 
 // SHORT Position Management
-if strategy.position_size < 0 and shortRiskAmount > 0
-    profitPoints = initialShortEntryPrice - close
-    profitInR = profitPoints / shortRiskAmount
+if strategy.position_size < 0
+    // Beräkna profit i R (med skydd mot division by zero)
+    shortProfitInR = shortRiskAmount > 0 ? (initialShortEntryPrice - close) / shortRiskAmount : 0
 
-    // Initial stop loss
-    initialSL = initialShortEntryPrice + (atr * slAtrMult)
+    // Beräkna SL-nivå baserat på current state
+    shortStopPrice = initialShortEntryPrice + (atr * slAtrMult)  // Default initial SL
 
-    // TP-nivå för trailing
+    // Om breakeven är aktiverad och profiten är tillräcklig, flytta SL till breakeven
+    if useBreakeven and shortProfitInR >= breakevenActivation
+        shortStopPrice := initialShortEntryPrice - (atr * breakevenBuffer)
+
+    // Om trailing är aktiverat (pris under TP), använd trailing istället
     shortTpPrice = strategy.position_avg_price - atr * atrMultTP
-    shortTrailOffset = shortTpPrice * (trailOffsetPct / 100)
-
-    // Breakeven move
-    if useBreakeven and profitInR >= breakevenActivation
-        breakevenPrice = initialShortEntryPrice - (atr * breakevenBuffer)
-        strategy.exit("SHORT_EXIT", from_entry="SHORT", stop=breakevenPrice)
-
-    // Trailing stop (aktiveras när TP nås)
-    else if close <= shortTpPrice
+    if close <= shortTpPrice
+        shortTrailOffset = shortTpPrice * (trailOffsetPct / 100)
         strategy.exit("SHORT_EXIT", from_entry="SHORT", trail_price=close, trail_offset=shortTrailOffset)
-
-    // Initial SL
     else
-        strategy.exit("SHORT_EXIT", from_entry="SHORT", stop=initialSL)
+        // Använd stop loss (antingen initial eller breakeven)
+        strategy.exit("SHORT_EXIT", from_entry="SHORT", stop=shortStopPrice)
 
 // === RESET COUNTERS ===
 wasInPosition = strategy.position_size[1] != 0
@@ -186,26 +178,50 @@ if wasInPosition and nowNoPosition
     lastShortPyramidBarIndex := na
     initialLongEntryPrice := 0.0
     initialShortEntryPrice := 0.0
+    longRiskAmount := 0.0
+    shortRiskAmount := 0.0
 
 // === PLOTTNING ===
 plot(hma, title="HMA", color=color.yellow, linewidth=2)
 plot(strategy.position_size != 0 ? strategy.position_avg_price : na, title="Inköpspris", color=color.orange, linewidth=2)
 plot(ma200_4h, title="MA200 (4h)", color=color.white, linewidth=1, style=plot.style_line)
 
-// Long plots
-longSLPlot = strategy.position_size > 0 ? initialLongEntryPrice - (atr * slAtrMult) : na
-longTPPlot = strategy.position_size > 0 ? strategy.position_avg_price + atr * atrMultTP : na
-longBEPlot = strategy.position_size > 0 and useBreakeven and longRiskAmount > 0 and (close - initialLongEntryPrice) / longRiskAmount >= breakevenActivation ? initialLongEntryPrice + (atr * breakevenBuffer) : na
+// Long plots (deklarera variabler före plotting)
+var float longSLPlot = na
+var float longTPPlot = na
+var float longBEPlot = na
+
+if strategy.position_size > 0
+    longSLPlot := initialLongEntryPrice - (atr * slAtrMult)
+    longTPPlot := strategy.position_avg_price + atr * atrMultTP
+    // Endast visa breakeven om den är aktiverad OCH profiten är tillräcklig
+    safelongProfitInR = longRiskAmount > 0 ? (close - initialLongEntryPrice) / longRiskAmount : 0
+    longBEPlot := (useBreakeven and safelongProfitInR >= breakevenActivation) ? initialLongEntryPrice + (atr * breakevenBuffer) : na
+else
+    longSLPlot := na
+    longTPPlot := na
+    longBEPlot := na
 
 plot(strategy.position_size > 0 ? longPyramidThreshold : na, title="Long Pyramidnivå", color=color.purple, style=plot.style_stepline)
 plot(longTPPlot, title="Long TP", color=color.green, style=plot.style_stepline, linewidth=2)
 plot(longSLPlot, title="Long SL", color=color.red, style=plot.style_stepline, linewidth=2)
 plot(longBEPlot, title="Long Breakeven", color=color.blue, style=plot.style_cross, linewidth=2)
 
-// Short plots
-shortSLPlot = strategy.position_size < 0 ? initialShortEntryPrice + (atr * slAtrMult) : na
-shortTPPlot = strategy.position_size < 0 ? strategy.position_avg_price - atr * atrMultTP : na
-shortBEPlot = strategy.position_size < 0 and useBreakeven and shortRiskAmount > 0 and (initialShortEntryPrice - close) / shortRiskAmount >= breakevenActivation ? initialShortEntryPrice - (atr * breakevenBuffer) : na
+// Short plots (deklarera variabler före plotting)
+var float shortSLPlot = na
+var float shortTPPlot = na
+var float shortBEPlot = na
+
+if strategy.position_size < 0
+    shortSLPlot := initialShortEntryPrice + (atr * slAtrMult)
+    shortTPPlot := strategy.position_avg_price - atr * atrMultTP
+    // Endast visa breakeven om den är aktiverad OCH profiten är tillräcklig
+    safeshortProfitInR = shortRiskAmount > 0 ? (initialShortEntryPrice - close) / shortRiskAmount : 0
+    shortBEPlot := (useBreakeven and safeshortProfitInR >= breakevenActivation) ? initialShortEntryPrice - (atr * breakevenBuffer) : na
+else
+    shortSLPlot := na
+    shortTPPlot := na
+    shortBEPlot := na
 
 plot(strategy.position_size < 0 ? shortPyramidThreshold : na, title="Short Pyramidnivå", color=color.maroon, style=plot.style_stepline)
 plot(shortTPPlot, title="Short TP", color=color.red, style=plot.style_stepline, linewidth=2)
@@ -269,9 +285,9 @@ if barstate.islast
     table.cell(dashboard, 1, 8, str.tostring(pnlPct, "#.##") + "%", text_color=color.white, bgcolor=color.new(pnlColor, 70), text_size=size.small)
 
     // Breakeven Status
-    beActive = (posSize > 0 and profitR >= breakevenActivation) or (posSize < 0 and profitR >= breakevenActivation)
-    beText = beActive ? "ACTIVE" : "INACTIVE"
-    beColor = beActive ? color.green : color.gray
+    beActive = useBreakeven and ((posSize > 0 and profitR >= breakevenActivation) or (posSize < 0 and profitR >= breakevenActivation))
+    beText = useBreakeven ? (beActive ? "ACTIVE" : "WAIT") : "OFF"
+    beColor = beActive ? color.green : useBreakeven ? color.orange : color.gray
     table.cell(dashboard, 0, 9, "Breakeven", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
     table.cell(dashboard, 1, 9, beText, text_color=color.white, bgcolor=color.new(beColor, 70), text_size=size.small)
 
