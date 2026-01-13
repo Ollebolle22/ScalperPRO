@@ -84,7 +84,7 @@ if close > ma200_4h and strategy.position_size == 0 and bar_index % 10 == 0 and 
 // === FÖRSTA KÖP LONG ===
 if enterLong
     qtyVal = f_calcQty(tradePct)
-    strategy.entry("LONG_" + str.tostring(longEntryCount + 1), strategy.long, qty=qtyVal)
+    strategy.entry("LONG", strategy.long, qty=qtyVal)
     label.new(bar_index, low * 0.97, text="Första Long\nPris: " + str.tostring(close, format.mintick) + "\nRSI: " + str.tostring(rsi, format.mintick), style=label.style_label_up, color=color.teal, textcolor=color.white)
     longEntryCount += 1
     initialLongEntryPrice := close
@@ -93,7 +93,7 @@ if enterLong
 // === FÖRSTA KÖP SHORT ===
 if enterShort
     qtyVal = f_calcQty(tradePct)
-    strategy.entry("SHORT_" + str.tostring(shortEntryCount + 1), strategy.short, qty=qtyVal)
+    strategy.entry("SHORT", strategy.short, qty=qtyVal)
     label.new(bar_index, high * 1.03, text="Första Short\nPris: " + str.tostring(close, format.mintick) + "\nRSI: " + str.tostring(rsi, format.mintick), style=label.style_label_down, color=color.orange, textcolor=color.white)
     shortEntryCount += 1
     initialShortEntryPrice := close
@@ -108,7 +108,7 @@ isLongDipp = strategy.position_size > 0 and close <= longPyramidThreshold and cl
 
 if isLongDipp
     qtyVal = f_calcQty(tradePct)
-    strategy.entry("LONG_" + str.tostring(longEntryCount + 1), strategy.long, qty=qtyVal)
+    strategy.entry("LONG", strategy.long, qty=qtyVal)
     label.new(bar_index, low * 0.97, text="Long Pyramid " + str.tostring(longEntryCount + 1) + "\nPris: " + str.tostring(close, format.mintick) + "\nRSI: " + str.tostring(rsi, format.mintick), style=label.style_label_up, color=color.green, textcolor=color.white)
     longEntryCount += 1
     lastLongPyramidBarIndex := bar_index
@@ -122,14 +122,14 @@ isShortRise = strategy.position_size < 0 and close >= shortPyramidThreshold and 
 
 if isShortRise
     qtyVal = f_calcQty(tradePct)
-    strategy.entry("SHORT_" + str.tostring(shortEntryCount + 1), strategy.short, qty=qtyVal)
+    strategy.entry("SHORT", strategy.short, qty=qtyVal)
     label.new(bar_index, high * 1.03, text="Short Pyramid " + str.tostring(shortEntryCount + 1) + "\nPris: " + str.tostring(close, format.mintick) + "\nRSI: " + str.tostring(rsi, format.mintick), style=label.style_label_down, color=color.red, textcolor=color.white)
     shortEntryCount += 1
     lastShortPyramidBarIndex := bar_index
 
 // === EXIT MANAGEMENT ===
 // LONG Position Management
-if strategy.position_size > 0
+if strategy.position_size > 0 and longRiskAmount > 0
     profitPoints = close - initialLongEntryPrice
     profitInR = profitPoints / longRiskAmount
 
@@ -143,18 +143,18 @@ if strategy.position_size > 0
     // Breakeven move
     if useBreakeven and profitInR >= breakevenActivation
         breakevenPrice = initialLongEntryPrice + (atr * breakevenBuffer)
-        strategy.exit("LONG_EXIT", "LONG", stop=breakevenPrice)
+        strategy.exit("LONG_EXIT", from_entry="LONG", stop=breakevenPrice)
 
     // Trailing stop (aktiveras när TP nås)
     else if close >= longTpPrice
-        strategy.exit("LONG_EXIT", "LONG", trail_price=close, trail_offset=longTrailOffset)
+        strategy.exit("LONG_EXIT", from_entry="LONG", trail_price=close, trail_offset=longTrailOffset)
 
     // Initial SL
     else
-        strategy.exit("LONG_EXIT", "LONG", stop=initialSL)
+        strategy.exit("LONG_EXIT", from_entry="LONG", stop=initialSL)
 
 // SHORT Position Management
-if strategy.position_size < 0
+if strategy.position_size < 0 and shortRiskAmount > 0
     profitPoints = initialShortEntryPrice - close
     profitInR = profitPoints / shortRiskAmount
 
@@ -168,15 +168,15 @@ if strategy.position_size < 0
     // Breakeven move
     if useBreakeven and profitInR >= breakevenActivation
         breakevenPrice = initialShortEntryPrice - (atr * breakevenBuffer)
-        strategy.exit("SHORT_EXIT", "SHORT", stop=breakevenPrice)
+        strategy.exit("SHORT_EXIT", from_entry="SHORT", stop=breakevenPrice)
 
     // Trailing stop (aktiveras när TP nås)
     else if close <= shortTpPrice
-        strategy.exit("SHORT_EXIT", "SHORT", trail_price=close, trail_offset=shortTrailOffset)
+        strategy.exit("SHORT_EXIT", from_entry="SHORT", trail_price=close, trail_offset=shortTrailOffset)
 
     // Initial SL
     else
-        strategy.exit("SHORT_EXIT", "SHORT", stop=initialSL)
+        strategy.exit("SHORT_EXIT", from_entry="SHORT", stop=initialSL)
 
 // === RESET COUNTERS ===
 wasInPosition = strategy.position_size[1] != 0
@@ -199,7 +199,7 @@ plot(ma200_4h, title="MA200 (4h)", color=color.white, linewidth=1, style=plot.st
 // Long plots
 longSLPlot = strategy.position_size > 0 ? initialLongEntryPrice - (atr * slAtrMult) : na
 longTPPlot = strategy.position_size > 0 ? strategy.position_avg_price + atr * atrMultTP : na
-longBEPlot = strategy.position_size > 0 and useBreakeven and (close - initialLongEntryPrice) / longRiskAmount >= breakevenActivation ? initialLongEntryPrice + (atr * breakevenBuffer) : na
+longBEPlot = strategy.position_size > 0 and useBreakeven and longRiskAmount > 0 and (close - initialLongEntryPrice) / longRiskAmount >= breakevenActivation ? initialLongEntryPrice + (atr * breakevenBuffer) : na
 
 plot(strategy.position_size > 0 ? longPyramidThreshold : na, title="Long Pyramidnivå", color=color.purple, style=plot.style_stepline)
 plot(longTPPlot, title="Long TP", color=color.green, style=plot.style_stepline, linewidth=2)
@@ -209,7 +209,7 @@ plot(longBEPlot, title="Long Breakeven", color=color.blue, style=plot.style_cros
 // Short plots
 shortSLPlot = strategy.position_size < 0 ? initialShortEntryPrice + (atr * slAtrMult) : na
 shortTPPlot = strategy.position_size < 0 ? strategy.position_avg_price - atr * atrMultTP : na
-shortBEPlot = strategy.position_size < 0 and useBreakeven and (initialShortEntryPrice - close) / shortRiskAmount >= breakevenActivation ? initialShortEntryPrice - (atr * breakevenBuffer) : na
+shortBEPlot = strategy.position_size < 0 and useBreakeven and shortRiskAmount > 0 and (initialShortEntryPrice - close) / shortRiskAmount >= breakevenActivation ? initialShortEntryPrice - (atr * breakevenBuffer) : na
 
 plot(strategy.position_size < 0 ? shortPyramidThreshold : na, title="Short Pyramidnivå", color=color.maroon, style=plot.style_stepline)
 plot(shortTPPlot, title="Short TP", color=color.red, style=plot.style_stepline, linewidth=2)
@@ -261,7 +261,7 @@ if barstate.islast
     table.cell(dashboard, 1, 6, entryCountText + "/" + str.tostring(pyramidLevels), text_color=color.white, bgcolor=color.new(color.blue, 70), text_size=size.small)
 
     // Profit in R
-    profitR = posSize > 0 ? (close - initialLongEntryPrice) / longRiskAmount : posSize < 0 ? (initialShortEntryPrice - close) / shortRiskAmount : 0
+    profitR = posSize > 0 and longRiskAmount > 0 ? (close - initialLongEntryPrice) / longRiskAmount : posSize < 0 and shortRiskAmount > 0 ? (initialShortEntryPrice - close) / shortRiskAmount : 0
     profitRColor = profitR > 0 ? color.green : profitR < 0 ? color.red : color.gray
     table.cell(dashboard, 0, 7, "Profit (R)", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
     table.cell(dashboard, 1, 7, str.tostring(profitR, "#.##") + "R", text_color=color.white, bgcolor=color.new(profitRColor, 70), text_size=size.small)
