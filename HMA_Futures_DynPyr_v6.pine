@@ -1,0 +1,168 @@
+//@version=6
+strategy("HMA Futures med Dynamisk Pyramid v6", shorttitle="HMA_Futures_v6", overlay=true, pyramiding=60, initial_capital=1000, currency=currency.USD, commission_type=strategy.commission.percent, commission_value=0.05, default_qty_type=strategy.percent_of_equity, default_qty_value=2)
+
+// === INPUTS ===
+// Grundläggande indikatorer
+hmaLen = input.int(55, "HMA-längd", minval=1, group="Indikatorer")
+atrLen = input.int(21, "ATR-längd", minval=1, group="Indikatorer")
+rsiLen = input.int(14, "RSI-längd för pyramidfilter", group="Indikatorer")
+
+// Trading inställningar
+tradingMode = input.string("Long & Short", "Trading Mode", options=["Long Only", "Short Only", "Long & Short"], group="Trading")
+tradePct = input.float(2.0, "Position per trade (%)", step=0.1, group="Trading")
+pyramidLevels = input.int(60, "Max pyramidnivåer", minval=1, group="Trading")
+
+// TP och Pyramid inställningar
+atrMultTP = input.float(5.5, "TP: ATR-multipel", step=0.1, group="Exit & Pyramid")
+pyramidATRmult = input.float(1.0, "Pyramid-ATR-multipel", step=0.1, group="Exit & Pyramid")
+trailOffsetPct = input.float(1.0, "Trail offset efter TP (%)", step=0.1, group="Exit & Pyramid")
+minPyramidDropPct = input.float(0.5, "Minsta procentuell dipp för nytt pyramidköp", step=0.1, group="Exit & Pyramid")
+
+// Filter
+rsiLimitLong = input.float(50, "Max RSI för long pyramidköp", step=1, group="Filter")
+rsiLimitShort = input.float(50, "Min RSI för short pyramidköp", step=1, group="Filter")
+minBarsBetweenPyramids = input.int(3, "Minsta antal bars mellan pyramidköp", minval=1, group="Filter")
+
+// === BERÄKNINGAR ===
+hma = ta.hma(close, hmaLen)
+atr = ta.atr(atrLen)
+hmaSlopeLong = hma > hma[1]
+hmaSlopeShort = hma < hma[1]
+bullTrend = close > hma
+bearTrend = close < hma
+ma200_4h = request.security(syminfo.tickerid, "240", ta.sma(close, 200), lookahead=barmerge.lookahead_off)
+rsi = ta.rsi(close, rsiLen)
+
+// === VARIABLER ===
+var int longEntryCount = 0
+var int shortEntryCount = 0
+var bool previousCanEnterLong = true
+var bool previousCanEnterShort = true
+var int lastLongPyramidBarIndex = na
+var int lastShortPyramidBarIndex = na
+
+// === ENTRY CONDITIONS ===
+// Long conditions
+canEnterLong = strategy.position_size == 0 and hmaSlopeLong and bullTrend and close > ma200_4h and (tradingMode == "Long Only" or tradingMode == "Long & Short")
+enterLong = canEnterLong and not previousCanEnterLong
+
+// Short conditions
+canEnterShort = strategy.position_size == 0 and hmaSlopeShort and bearTrend and close < ma200_4h and (tradingMode == "Short Only" or tradingMode == "Long & Short")
+enterShort = canEnterShort and not previousCanEnterShort
+
+// Funktion för att beräkna quantity
+f_calcQty(_pct) =>
+    strategy.equity * (_pct * 0.01) / close
+
+// === VARNINGAR FÖR FILTER ===
+if close < ma200_4h and strategy.position_size == 0 and bar_index % 10 == 0 and (tradingMode == "Long Only" or tradingMode == "Long & Short")
+    label.new(bar_index, high * 1.03, text="🚫 Inga long – under MA200 (4h)", style=label.style_label_down, color=color.red, textcolor=color.white, size=size.normal)
+
+if close > ma200_4h and strategy.position_size == 0 and bar_index % 10 == 0 and (tradingMode == "Short Only" or tradingMode == "Long & Short")
+    label.new(bar_index, low * 0.97, text="🚫 Inga short – över MA200 (4h)", style=label.style_label_up, color=color.red, textcolor=color.white, size=size.normal)
+
+// === FÖRSTA KÖP LONG ===
+if enterLong
+    qtyVal = f_calcQty(tradePct)
+    strategy.entry("LONG_" + str.tostring(longEntryCount + 1), strategy.long, qty=qtyVal)
+    label.new(bar_index, low * 0.97, text="Första Long\nPris: " + str.tostring(close, format.mintick) + "\nRSI: " + str.tostring(rsi, format.mintick), style=label.style_label_up, color=color.teal, textcolor=color.white)
+    longEntryCount += 1
+
+// === FÖRSTA KÖP SHORT ===
+if enterShort
+    qtyVal = f_calcQty(tradePct)
+    strategy.entry("SHORT_" + str.tostring(shortEntryCount + 1), strategy.short, qty=qtyVal)
+    label.new(bar_index, high * 1.03, text="Första Short\nPris: " + str.tostring(close, format.mintick) + "\nRSI: " + str.tostring(rsi, format.mintick), style=label.style_label_down, color=color.orange, textcolor=color.white)
+    shortEntryCount += 1
+
+// === PYRAMIDKÖP LONG ===
+longPyramidThreshold = strategy.position_avg_price - atr * pyramidATRmult
+longMinDrop = strategy.position_avg_price * (1 - minPyramidDropPct / 100)
+longRsiFilter = rsi < rsiLimitLong
+barsSinceLastLongPyramid = bar_index - nz(lastLongPyramidBarIndex, 0)
+isLongDipp = strategy.position_size > 0 and close <= longPyramidThreshold and close < close[1] and close <= longMinDrop and longEntryCount < pyramidLevels and close > ma200_4h and longRsiFilter and barsSinceLastLongPyramid >= minBarsBetweenPyramids
+
+if isLongDipp
+    qtyVal = f_calcQty(tradePct)
+    strategy.entry("LONG_" + str.tostring(longEntryCount + 1), strategy.long, qty=qtyVal)
+    label.new(bar_index, low * 0.97, text="Long Pyramid " + str.tostring(longEntryCount + 1) + "\nPris: " + str.tostring(close, format.mintick) + "\nRSI: " + str.tostring(rsi, format.mintick), style=label.style_label_up, color=color.green, textcolor=color.white)
+    longEntryCount += 1
+    lastLongPyramidBarIndex := bar_index
+
+// === PYRAMIDKÖP SHORT ===
+shortPyramidThreshold = strategy.position_avg_price + atr * pyramidATRmult
+shortMinRise = strategy.position_avg_price * (1 + minPyramidDropPct / 100)
+shortRsiFilter = rsi > rsiLimitShort
+barsSinceLastShortPyramid = bar_index - nz(lastShortPyramidBarIndex, 0)
+isShortRise = strategy.position_size < 0 and close >= shortPyramidThreshold and close > close[1] and close >= shortMinRise and shortEntryCount < pyramidLevels and close < ma200_4h and shortRsiFilter and barsSinceLastShortPyramid >= minBarsBetweenPyramids
+
+if isShortRise
+    qtyVal = f_calcQty(tradePct)
+    strategy.entry("SHORT_" + str.tostring(shortEntryCount + 1), strategy.short, qty=qtyVal)
+    label.new(bar_index, high * 1.03, text="Short Pyramid " + str.tostring(shortEntryCount + 1) + "\nPris: " + str.tostring(close, format.mintick) + "\nRSI: " + str.tostring(rsi, format.mintick), style=label.style_label_down, color=color.red, textcolor=color.white)
+    shortEntryCount += 1
+    lastShortPyramidBarIndex := bar_index
+
+// === EXIT LONG ===
+longTpPrice = strategy.position_avg_price + atr * atrMultTP
+longTrailOffset = longTpPrice * (trailOffsetPct / 100)
+
+if strategy.position_size > 0 and close >= longTpPrice
+    strategy.exit("Exit_Long", from_entry="", trail_price=close, trail_offset=longTrailOffset)
+
+// === EXIT SHORT ===
+shortTpPrice = strategy.position_avg_price - atr * atrMultTP
+shortTrailOffset = shortTpPrice * (trailOffsetPct / 100)
+
+if strategy.position_size < 0 and close <= shortTpPrice
+    strategy.exit("Exit_Short", from_entry="", trail_price=close, trail_offset=shortTrailOffset)
+
+// === RESET COUNTERS ===
+if strategy.position_size == 0
+    longEntryCount := 0
+    shortEntryCount := 0
+    lastLongPyramidBarIndex := na
+    lastShortPyramidBarIndex := na
+
+// === PLOTTNING ===
+plot(hma, title="HMA", color=color.yellow, linewidth=2)
+plot(strategy.position_size != 0 ? strategy.position_avg_price : na, title="Inköpspris", color=color.orange, linewidth=2)
+
+// Long plots
+plot(strategy.position_size > 0 ? longPyramidThreshold : na, title="Long Pyramidnivå", color=color.purple, style=plot.style_stepline)
+plot(strategy.position_size > 0 ? longTpPrice : na, title="Long TP-linje", color=color.green, style=plot.style_stepline, linewidth=2)
+
+// Short plots
+plot(strategy.position_size < 0 ? shortPyramidThreshold : na, title="Short Pyramidnivå", color=color.maroon, style=plot.style_stepline)
+plot(strategy.position_size < 0 ? shortTpPrice : na, title="Short TP-linje", color=color.red, style=plot.style_stepline, linewidth=2)
+
+// ATR och RSI
+plot(atr, title="ATR", color=color.blue, linewidth=1)
+hline(50, "RSI Mitten", color=color.gray, linestyle=hline.style_dotted)
+
+// Trail stop lines
+var float longTrailStop = na
+var float shortTrailStop = na
+
+if strategy.position_size > 0 and close >= longTpPrice
+    longTrailStop := close - longTrailOffset
+else
+    longTrailStop := na
+
+if strategy.position_size < 0 and close <= shortTpPrice
+    shortTrailStop := close + shortTrailOffset
+else
+    shortTrailStop := na
+
+plot(longTrailStop, title="Long Trail Stop", color=color.red, style=plot.style_linebr, linewidth=2)
+plot(shortTrailStop, title="Short Trail Stop", color=color.lime, style=plot.style_linebr, linewidth=2)
+
+// Background colors
+bgcolor(canEnterLong ? color.new(color.green, 85) : canEnterShort ? color.new(color.red, 85) : na, title="Entry Status")
+
+// MA200 plot
+plot(ma200_4h, title="MA200 (4h)", color=color.white, linewidth=1, style=plot.style_line)
+
+// Update previous states
+previousCanEnterLong := canEnterLong
+previousCanEnterShort := canEnterShort
