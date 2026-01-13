@@ -11,6 +11,7 @@ rsiLen = input.int(14, "RSI-längd för pyramidfilter", group="Indikatorer")
 tradingMode = input.string("Long & Short", "Trading Mode", options=["Long Only", "Short Only", "Long & Short"], group="Trading")
 tradePct = input.float(2.0, "Position per trade (%)", step=0.1, group="Trading")
 pyramidLevels = input.int(60, "Max pyramidnivåer", minval=1, group="Trading")
+useCompoundingWithOpenProfit = input.bool(false, "Compound med Open Profit", group="Trading", tooltip="Inkludera öppen vinst i position sizing (mer aggressivt)")
 
 // TP och Pyramid inställningar
 atrMultTP = input.float(5.5, "TP: ATR-multipel", step=0.1, group="Exit & Pyramid")
@@ -33,6 +34,19 @@ breakevenBuffer = input.float(0.1, "Breakeven Buffer (ATR x)", minval=0.0, maxva
 
 // Cooling period
 barsAfterExit = input.int(5, "Bars After Exit", minval=0, maxval=20, group="⏰ Timing", tooltip="Antal bars att vänta efter exit innan ny entry tillåts")
+
+// Färginställningar
+hmaColor = input.color(color.yellow, "HMA Linje", group="🎨 Färger")
+ma200Color = input.color(color.white, "MA200 (4h)", group="🎨 Färger")
+avgPriceColor = input.color(color.orange, "Average Price", group="🎨 Färger")
+longPyramidColor = input.color(color.purple, "Long Pyramid", group="🎨 Färger")
+longTPColor = input.color(color.green, "Long TP", group="🎨 Färger")
+longSLColor = input.color(color.red, "Long SL", group="🎨 Färger")
+longBEColor = input.color(color.blue, "Long Breakeven", group="🎨 Färger")
+shortPyramidColor = input.color(color.maroon, "Short Pyramid", group="🎨 Färger")
+shortTPColor = input.color(color.red, "Short TP", group="🎨 Färger")
+shortSLColor = input.color(color.lime, "Short SL", group="🎨 Färger")
+shortBEColor = input.color(color.aqua, "Short Breakeven", group="🎨 Färger")
 
 // === BERÄKNINGAR ===
 hma = ta.hma(close, hmaLen)
@@ -66,9 +80,11 @@ enterLong = strategy.position_size == 0 and hmaSlopeLong and bullTrend and close
 // Short conditions
 enterShort = strategy.position_size == 0 and hmaSlopeShort and bearTrend and close < ma200_4h and (tradingMode == "Short Only" or tradingMode == "Long & Short") and coolingPeriodOk
 
-// Funktion för att beräkna quantity
+// Funktion för att beräkna quantity med compounding
 f_calcQty(_pct) =>
-    strategy.equity * (_pct * 0.01) / close
+    // Använd equity + open profit om compounding med open profit är aktiverat
+    baseEquity = useCompoundingWithOpenProfit ? (strategy.equity + strategy.openprofit) : strategy.equity
+    baseEquity * (_pct * 0.01) / close
 
 // === VARNINGAR FÖR FILTER ===
 if close < ma200_4h and strategy.position_size == 0 and bar_index % 10 == 0 and (tradingMode == "Long Only" or tradingMode == "Long & Short")
@@ -182,9 +198,9 @@ if wasInPosition and nowNoPosition
     shortRiskAmount := 0.0
 
 // === PLOTTNING ===
-plot(hma, title="HMA", color=color.yellow, linewidth=2)
-plot(strategy.position_size != 0 ? strategy.position_avg_price : na, title="Inköpspris", color=color.orange, linewidth=2)
-plot(ma200_4h, title="MA200 (4h)", color=color.white, linewidth=1, style=plot.style_line)
+plot(hma, title="HMA", color=hmaColor, linewidth=2)
+plot(strategy.position_size != 0 ? strategy.position_avg_price : na, title="Inköpspris", color=avgPriceColor, linewidth=2)
+plot(ma200_4h, title="MA200 (4h)", color=ma200Color, linewidth=1, style=plot.style_line)
 
 // Long plots (deklarera variabler före plotting)
 var float longSLPlot = na
@@ -202,10 +218,10 @@ else
     longTPPlot := na
     longBEPlot := na
 
-plot(strategy.position_size > 0 ? longPyramidThreshold : na, title="Long Pyramidnivå", color=color.purple, style=plot.style_stepline)
-plot(longTPPlot, title="Long TP", color=color.green, style=plot.style_stepline, linewidth=2)
-plot(longSLPlot, title="Long SL", color=color.red, style=plot.style_stepline, linewidth=2)
-plot(longBEPlot, title="Long Breakeven", color=color.blue, style=plot.style_cross, linewidth=2)
+plot(strategy.position_size > 0 ? longPyramidThreshold : na, title="Long Pyramidnivå", color=longPyramidColor, style=plot.style_stepline)
+plot(longTPPlot, title="Long TP", color=longTPColor, style=plot.style_stepline, linewidth=2)
+plot(longSLPlot, title="Long SL", color=longSLColor, style=plot.style_stepline, linewidth=2)
+plot(longBEPlot, title="Long Breakeven", color=longBEColor, style=plot.style_cross, linewidth=2)
 
 // Short plots (deklarera variabler före plotting)
 var float shortSLPlot = na
@@ -223,10 +239,10 @@ else
     shortTPPlot := na
     shortBEPlot := na
 
-plot(strategy.position_size < 0 ? shortPyramidThreshold : na, title="Short Pyramidnivå", color=color.maroon, style=plot.style_stepline)
-plot(shortTPPlot, title="Short TP", color=color.red, style=plot.style_stepline, linewidth=2)
-plot(shortSLPlot, title="Short SL", color=color.lime, style=plot.style_stepline, linewidth=2)
-plot(shortBEPlot, title="Short Breakeven", color=color.aqua, style=plot.style_cross, linewidth=2)
+plot(strategy.position_size < 0 ? shortPyramidThreshold : na, title="Short Pyramidnivå", color=shortPyramidColor, style=plot.style_stepline)
+plot(shortTPPlot, title="Short TP", color=shortTPColor, style=plot.style_stepline, linewidth=2)
+plot(shortSLPlot, title="Short SL", color=shortSLColor, style=plot.style_stepline, linewidth=2)
+plot(shortBEPlot, title="Short Breakeven", color=shortBEColor, style=plot.style_cross, linewidth=2)
 
 // Background colors
 bgcolor(enterLong ? color.new(color.green, 85) : enterShort ? color.new(color.red, 85) : na, title="Entry Status")
@@ -292,8 +308,9 @@ if barstate.islast
     table.cell(dashboard, 1, 9, beText, text_color=color.white, bgcolor=color.new(beColor, 70), text_size=size.small)
 
     // Cooling Period
-    coolingText = coolingPeriodOk ? "OK ✓" : str.tostring(barsAfterExit - barsSinceExit) + " bars"
-    coolingColor = coolingPeriodOk ? color.green : color.orange
+    barsLeft = math.max(0, barsAfterExit - barsSinceExit)
+    coolingText = barsAfterExit == 0 ? "OFF" : (coolingPeriodOk ? "OK ✓" : str.tostring(barsLeft) + "/" + str.tostring(barsAfterExit))
+    coolingColor = barsAfterExit == 0 ? color.gray : (coolingPeriodOk ? color.green : color.orange)
     table.cell(dashboard, 0, 10, "Cooling", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
     table.cell(dashboard, 1, 10, coolingText, text_color=color.white, bgcolor=color.new(coolingColor, 70), text_size=size.small)
 
