@@ -36,6 +36,7 @@ strategy("⚡ Trend Pyramiding 1M",
 //
 // **TREND FILTERS:**
 // - EMA 9/21/50 full alignment
+// - EMA 200 major trend filter (endast longs över, endast shorts under)
 // - ADX ≥25 för starka trends
 // - Price trend filter enabled
 // - Volume confirmation
@@ -55,6 +56,8 @@ max_pyramiding = input.int(5, "Max Pyramid Entries", minval=1, maxval=10, group=
 ema_fast_length = input.int(9, "EMA Fast", minval=5, maxval=21, group="📈 EMA Inställningar", tooltip="Snabb EMA för momentum (9 för 1min)")
 ema_slow_length = input.int(21, "EMA Slow", minval=13, maxval=50, group="📈 EMA Inställningar", tooltip="Långsam EMA för trend (21 för 1min)")
 ema_trend_length = input.int(50, "EMA Trend", minval=21, maxval=200, group="📈 EMA Inställningar", tooltip="Trend filter EMA (50 för 1min)")
+ema_major_length = input.int(200, "EMA Major Trend", minval=100, maxval=500, group="📈 EMA Inställningar", tooltip="Major trend EMA (200) - Long endast över, Short endast under")
+use_ema_major_filter = input.bool(true, "Use EMA 200 Filter", group="📈 EMA Inställningar", tooltip="Endast longs över EMA 200, endast shorts under EMA 200")
 
 // 🎯 RSI Momentum
 rsi_length = input.int(14, "RSI Period", minval=7, maxval=21, group="🎯 RSI Momentum", tooltip="RSI period för momentum")
@@ -120,6 +123,7 @@ strategy_name_bot = input.string("FMS_1M", "Strategy Name", group="🤖 Bot Conf
 ema_fast = ta.ema(close, ema_fast_length)
 ema_slow = ta.ema(close, ema_slow_length)
 ema_trend = ta.ema(close, ema_trend_length)
+ema_major = ta.ema(close, ema_major_length)
 
 // RSI för momentum
 rsi = ta.rsi(close, rsi_length)
@@ -187,6 +191,10 @@ price_trend_ok_short = use_price_trend_filter ? (close < ema_trend and ema_slow 
 macd_ok_long = use_macd ? (macd_bullish or macd_bull_cross) : true
 macd_ok_short = use_macd ? (macd_bearish or macd_bear_cross) : true
 
+// EMA 200 Major Trend Filter - Endast longs över, endast shorts under
+ema_major_ok_long = use_ema_major_filter ? (close > ema_major) : true
+ema_major_ok_short = use_ema_major_filter ? (close < ema_major) : true
+
 // Position state
 in_long = strategy.position_size > 0
 in_short = strategy.position_size < 0
@@ -194,44 +202,16 @@ no_position = strategy.position_size == 0
 can_add_entry = current_entries < max_pyramiding
 
 // INITIAL LONG Entry (no position)
-initial_long = (no_position and
-                ema_bull_cross and
-                bullish_momentum and
-                ema_full_bull_align and
-                strong_trend and
-                very_strong_trend and
-                price_trend_ok_long and
-                volume_ok and
-                macd_ok_long)
+initial_long = no_position and ema_bull_cross and bullish_momentum and ema_full_bull_align and strong_trend and very_strong_trend and price_trend_ok_long and volume_ok and macd_ok_long and ema_major_ok_long
 
 // PYRAMID LONG Entry (already in long)
-pyramid_long_condition = (in_long and
-                          can_add_entry and
-                          spacing_ok and
-                          ema_full_bull_align and
-                          strong_trend and
-                          (use_pyramid_pullback ? (rsi < pullback_rsi_threshold) : true) and
-                          ((close > last_entry_price + (atr * pyramid_spacing_atr)) or (use_pyramid_pullback == false)))
+pyramid_long_condition = in_long and can_add_entry and spacing_ok and ema_full_bull_align and strong_trend and (use_pyramid_pullback ? (rsi < pullback_rsi_threshold) : true) and ((close > last_entry_price + (atr * pyramid_spacing_atr)) or (use_pyramid_pullback == false)) and ema_major_ok_long
 
 // INITIAL SHORT Entry (no position)
-initial_short = (no_position and
-                 ema_bear_cross and
-                 bearish_momentum and
-                 ema_full_bear_align and
-                 strong_trend and
-                 very_strong_trend and
-                 price_trend_ok_short and
-                 volume_ok and
-                 macd_ok_short)
+initial_short = no_position and ema_bear_cross and bearish_momentum and ema_full_bear_align and strong_trend and very_strong_trend and price_trend_ok_short and volume_ok and macd_ok_short and ema_major_ok_short
 
 // PYRAMID SHORT Entry (already in short)
-pyramid_short_condition = (in_short and
-                           can_add_entry and
-                           spacing_ok and
-                           ema_full_bear_align and
-                           strong_trend and
-                           (use_pyramid_pullback ? (rsi > (100 - pullback_rsi_threshold)) : true) and
-                           ((close < last_entry_price - (atr * pyramid_spacing_atr)) or (use_pyramid_pullback == false)))
+pyramid_short_condition = in_short and can_add_entry and spacing_ok and ema_full_bear_align and strong_trend and (use_pyramid_pullback ? (rsi > (100 - pullback_rsi_threshold)) : true) and ((close < last_entry_price - (atr * pyramid_spacing_atr)) or (use_pyramid_pullback == false)) and ema_major_ok_short
 
 // Final conditions
 long_condition = initial_long or pyramid_long_condition
@@ -388,6 +368,7 @@ if in_short
 plot(ema_fast, "EMA Fast", color=color.new(color.yellow, 0), linewidth=2)
 plot(ema_slow, "EMA Slow", color=color.new(color.orange, 0), linewidth=2)
 plot(ema_trend, "EMA Trend", color=color.new(color.blue, 0), linewidth=2)
+plot(ema_major, "EMA 200", color=color.new(color.purple, 0), linewidth=3)
 
 // Plot entry signals
 plotshape(long_condition, "LONG", shape.triangleup, location.belowbar, color.new(color.green, 0), size=size.small)
