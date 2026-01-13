@@ -16,15 +16,17 @@ strategy("⚡ Fast Momentum Scalper 1M",
 // ═══════════════════════════════════════════════════════════════════════════════
 // 📊 STRATEGI BESKRIVNING
 // ═══════════════════════════════════════════════════════════════════════════════
-// BALANSERAD momentum scalper för 1-minuters timeframe
-// - RSI zones (40-70 för longs) + EMA full alignment + MACD
-// - ADX ≥22 (balans mellan kvalitet och kvantitet) + Volume 1.3x MA
+// AGGRESSIV momentum scalper för 1-minuters timeframe
+// - RSI zones (35-75 för longs) BREDA för fler trades
+// - EMA full alignment + EMA crossover
+// - ADX ≥18 (LÅGT för fler trades) - KAN DISABLAS!
+// - Volume 1.1x MA (LÅGT) - KAN DISABLAS!
+// - MACD DISABLED som default - Aktivera om du vill färre trades
 // - Position size 10% med 5x leverage = 50% exponering
-// - SL (2.0 ATR) och TP (3.5 ATR) = 1:1.75 R:R
-// - Cooling period (2 bars) mellan trades för kontinuerlig trading
-// - Tar både longs och shorts när conditions uppfylls
-// - Ingen DCA - ren momentum scalping
-// - Commission 0.045% - Optimerad för lönsamhet!
+// - SL (2.0 ATR) och TP (3.0 ATR) = 1:1.5 R:R
+// - INGEN cooling period = kontinuerlig trading!
+// - Tar både longs och shorts aggressivt
+// - Commission 0.045%
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -42,32 +44,34 @@ ema_trend_length = input.int(50, "EMA Trend", minval=21, maxval=200, group="📈
 
 // 🎯 RSI Momentum
 rsi_length = input.int(14, "RSI Period", minval=7, maxval=21, group="🎯 RSI Momentum", tooltip="RSI period för momentum")
-rsi_long_min = input.int(40, "RSI Long Min", minval=30, maxval=55, group="🎯 RSI Momentum", tooltip="Minimum RSI för longs (undvik översålt)")
-rsi_long_max = input.int(70, "RSI Long Max", minval=55, maxval=75, group="🎯 RSI Momentum", tooltip="Maximum RSI för longs (undvik överköpt)")
-rsi_short_min = input.int(30, "RSI Short Min", minval=25, maxval=45, group="🎯 RSI Momentum", tooltip="Minimum RSI för shorts")
-rsi_short_max = input.int(60, "RSI Short Max", minval=45, maxval=70, group="🎯 RSI Momentum", tooltip="Maximum RSI för shorts")
+rsi_long_min = input.int(35, "RSI Long Min", minval=20, maxval=55, group="🎯 RSI Momentum", tooltip="Minimum RSI för longs")
+rsi_long_max = input.int(75, "RSI Long Max", minval=55, maxval=85, group="🎯 RSI Momentum", tooltip="Maximum RSI för longs")
+rsi_short_min = input.int(25, "RSI Short Min", minval=15, maxval=45, group="🎯 RSI Momentum", tooltip="Minimum RSI för shorts")
+rsi_short_max = input.int(65, "RSI Short Max", minval=45, maxval=80, group="🎯 RSI Momentum", tooltip="Maximum RSI för shorts")
 
 // 📊 MACD Confirmation
 macd_fast = input.int(12, "MACD Fast", minval=8, maxval=15, group="📊 MACD", tooltip="MACD fast length")
 macd_slow = input.int(26, "MACD Slow", minval=20, maxval=35, group="📊 MACD", tooltip="MACD slow length")
 macd_signal = input.int(9, "MACD Signal", minval=7, maxval=12, group="📊 MACD", tooltip="MACD signal length")
-use_macd = input.bool(true, "Use MACD Filter", group="📊 MACD", tooltip="Kräv MACD confirmation (rekommenderat)")
+use_macd = input.bool(false, "Use MACD Filter", group="📊 MACD", tooltip="MACD filter (DISABLED för fler trades)")
 
 // 💪 ADX Trend Strength
 adx_length = input.int(14, "ADX Period", minval=7, maxval=21, group="💪 ADX Trend Strength", tooltip="ADX period")
-adx_threshold = input.float(22.0, "ADX Minimum", minval=15.0, maxval=35.0, step=1.0, group="💪 ADX Trend Strength", tooltip="Minimum ADX för att ta trades (22 = balans mellan antal trades och kvalitet)")
+adx_threshold = input.float(18.0, "ADX Minimum", minval=10.0, maxval=35.0, step=1.0, group="💪 ADX Trend Strength", tooltip="ADX minimum (18 = mer trades)")
+use_adx = input.bool(true, "Use ADX Filter", group="💪 ADX Trend Strength", tooltip="ADX filter (kan disablas för ännu fler trades)")
 
 // 📦 Volume Filter
-volume_multiplier = input.float(1.3, "Volume Multiplier", minval=1.0, maxval=2.5, step=0.1, group="📦 Volume Filter", tooltip="Minimum volume vs MA (1.3 = 30% över genomsnitt)")
+volume_multiplier = input.float(1.1, "Volume Multiplier", minval=0.8, maxval=2.5, step=0.1, group="📦 Volume Filter", tooltip="Minimum volume vs MA (1.1 = bara 10% över)")
 volume_ma_length = input.int(20, "Volume MA Period", minval=10, maxval=50, group="📦 Volume Filter", tooltip="Period för volume moving average")
+use_volume = input.bool(true, "Use Volume Filter", group="📦 Volume Filter", tooltip="Volume filter (kan disablas för ännu fler trades)")
 
 // 🎯 Risk Management (Enkel SL/TP)
 atr_length = input.int(14, "ATR Period", minval=7, maxval=21, group="🎯 Risk Management", tooltip="ATR period för SL/TP beräkning")
 sl_atr_multiplier = input.float(2.0, "Stop Loss (ATR x)", minval=1.0, maxval=3.0, step=0.1, group="🎯 Risk Management", tooltip="Stop loss distans (ATR multiplier)")
-tp_atr_multiplier = input.float(3.5, "Take Profit (ATR x)", minval=2.0, maxval=8.0, step=0.5, group="🎯 Risk Management", tooltip="Take profit distans (ATR multiplier) - Balans mellan hit rate och profit")
+tp_atr_multiplier = input.float(3.0, "Take Profit (ATR x)", minval=2.0, maxval=8.0, step=0.5, group="🎯 Risk Management", tooltip="Take profit distans (lägre = lättare att nå)")
 
 // ⏰ Cooling Period
-bars_between_trades = input.int(2, "Bars Between Trades", minval=0, maxval=20, group="⏰ Timing", tooltip="Minimum bars att vänta efter stängd trade (2 = kort paus)")
+bars_between_trades = input.int(0, "Bars Between Trades", minval=0, maxval=20, group="⏰ Timing", tooltip="Bars mellan trades (0 = DISABLED för kontinuerlig trading)")
 
 // 🤖 Bot Configuration (WunderTrading)
 bot_id = input.string("your_bot_id_here", "Bot ID", group="🤖 Bot Config", tooltip="WunderTrading bot ID")
@@ -103,12 +107,12 @@ atr = ta.atr(atr_length)
 
 // Volume filter
 volume_ma = ta.sma(volume, volume_ma_length)
-volume_ok = volume > volume_ma * volume_multiplier
+volume_ok = use_volume ? (volume > volume_ma * volume_multiplier) : true
 
 // Cooling period check
 var int last_exit_bar = 0
 bars_since_exit = bar_index - last_exit_bar
-cooling_ok = bars_since_exit >= bars_between_trades
+cooling_ok = bars_between_trades > 0 ? (bars_since_exit >= bars_between_trades) : true
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 🎯 ENTRY CONDITIONS
@@ -131,14 +135,14 @@ ema_bearish = ema_fast < ema_slow
 ema_full_bull_align = ema_fast > ema_slow and ema_slow > ema_trend
 ema_full_bear_align = ema_fast < ema_slow and ema_slow < ema_trend
 
-// Trend strength
-strong_trend = adx >= adx_threshold
+// Trend strength (om enabled)
+strong_trend = use_adx ? (adx >= adx_threshold) : true
 
 // MACD confirmation (om enabled)
 macd_ok_long = use_macd ? (macd_bullish or macd_bull_cross) : true
 macd_ok_short = use_macd ? (macd_bearish or macd_bear_cross) : true
 
-// LONG Entry Conditions (mycket mer selektiv!)
+// LONG Entry Conditions (AGGRESSIV - fler trades!)
 long_condition = ema_bull_cross and
                  bullish_momentum and
                  ema_full_bull_align and
