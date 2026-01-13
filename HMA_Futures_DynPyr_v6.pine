@@ -47,28 +47,24 @@ rsi = ta.rsi(close, rsiLen)
 // === VARIABLER ===
 var int longEntryCount = 0
 var int shortEntryCount = 0
-var bool previousCanEnterLong = true
-var bool previousCanEnterShort = true
 var int lastLongPyramidBarIndex = na
 var int lastShortPyramidBarIndex = na
 var float initialLongEntryPrice = 0.0
 var float initialShortEntryPrice = 0.0
 var float longRiskAmount = 0.0
 var float shortRiskAmount = 0.0
-var int lastExitBar = 0
+var int lastExitBar = na
 
 // === ENTRY CONDITIONS ===
-// Cooling period check
-barsSinceExit = bar_index - lastExitBar
+// Cooling period check (tillåt första entry genom att sätta na som default)
+barsSinceExit = na(lastExitBar) ? barsAfterExit : bar_index - lastExitBar
 coolingPeriodOk = barsSinceExit >= barsAfterExit
 
 // Long conditions
-canEnterLong = strategy.position_size == 0 and hmaSlopeLong and bullTrend and close > ma200_4h and (tradingMode == "Long Only" or tradingMode == "Long & Short") and coolingPeriodOk
-enterLong = canEnterLong and not previousCanEnterLong
+enterLong = strategy.position_size == 0 and hmaSlopeLong and bullTrend and close > ma200_4h and (tradingMode == "Long Only" or tradingMode == "Long & Short") and coolingPeriodOk
 
 // Short conditions
-canEnterShort = strategy.position_size == 0 and hmaSlopeShort and bearTrend and close < ma200_4h and (tradingMode == "Short Only" or tradingMode == "Long & Short") and coolingPeriodOk
-enterShort = canEnterShort and not previousCanEnterShort
+enterShort = strategy.position_size == 0 and hmaSlopeShort and bearTrend and close < ma200_4h and (tradingMode == "Short Only" or tradingMode == "Long & Short") and coolingPeriodOk
 
 // Funktion för att beräkna quantity
 f_calcQty(_pct) =>
@@ -217,7 +213,7 @@ plot(shortSLPlot, title="Short SL", color=color.lime, style=plot.style_stepline,
 plot(shortBEPlot, title="Short Breakeven", color=color.aqua, style=plot.style_cross, linewidth=2)
 
 // Background colors
-bgcolor(canEnterLong ? color.new(color.green, 85) : canEnterShort ? color.new(color.red, 85) : na, title="Entry Status")
+bgcolor(enterLong ? color.new(color.green, 85) : enterShort ? color.new(color.red, 85) : na, title="Entry Status")
 
 // === DASHBOARD ===
 var table dashboard = table.new(position.top_right, 2, 14, border_width=2, border_color=color.gray, frame_color=color.gray, frame_width=1)
@@ -300,7 +296,3 @@ if barstate.islast
     npColor = netProfitPct > 0 ? color.green : color.red
     table.cell(dashboard, 0, 13, "Net Profit %", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
     table.cell(dashboard, 1, 13, str.tostring(netProfitPct, "#.##") + "%", text_color=color.white, bgcolor=color.new(npColor, 70), text_size=size.small)
-
-// Update previous states
-previousCanEnterLong := canEnterLong
-previousCanEnterShort := canEnterShort
