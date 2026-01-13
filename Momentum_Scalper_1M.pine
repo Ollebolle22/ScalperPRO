@@ -194,44 +194,44 @@ no_position = strategy.position_size == 0
 can_add_entry = current_entries < max_pyramiding
 
 // INITIAL LONG Entry (no position)
-initial_long = no_position and
-               ema_bull_cross and
-               bullish_momentum and
-               ema_full_bull_align and
-               strong_trend and
-               very_strong_trend and
-               price_trend_ok_long and
-               volume_ok and
-               macd_ok_long
-
-// PYRAMID LONG Entry (already in long)
-pyramid_long_condition = in_long and
-                         can_add_entry and
-                         spacing_ok and
-                         ema_full_bull_align and
-                         strong_trend and
-                         (use_pyramid_pullback ? (rsi < pullback_rsi_threshold) : true) and
-                         ((close > last_entry_price + (atr * pyramid_spacing_atr)) or (use_pyramid_pullback == false))
-
-// INITIAL SHORT Entry (no position)
-initial_short = no_position and
-                ema_bear_cross and
-                bearish_momentum and
-                ema_full_bear_align and
+initial_long = (no_position and
+                ema_bull_cross and
+                bullish_momentum and
+                ema_full_bull_align and
                 strong_trend and
                 very_strong_trend and
-                price_trend_ok_short and
+                price_trend_ok_long and
                 volume_ok and
-                macd_ok_short
+                macd_ok_long)
 
-// PYRAMID SHORT Entry (already in short)
-pyramid_short_condition = in_short and
+// PYRAMID LONG Entry (already in long)
+pyramid_long_condition = (in_long and
                           can_add_entry and
                           spacing_ok and
-                          ema_full_bear_align and
+                          ema_full_bull_align and
                           strong_trend and
-                          (use_pyramid_pullback ? (rsi > (100 - pullback_rsi_threshold)) : true) and
-                          ((close < last_entry_price - (atr * pyramid_spacing_atr)) or (use_pyramid_pullback == false))
+                          (use_pyramid_pullback ? (rsi < pullback_rsi_threshold) : true) and
+                          ((close > last_entry_price + (atr * pyramid_spacing_atr)) or (use_pyramid_pullback == false)))
+
+// INITIAL SHORT Entry (no position)
+initial_short = (no_position and
+                 ema_bear_cross and
+                 bearish_momentum and
+                 ema_full_bear_align and
+                 strong_trend and
+                 very_strong_trend and
+                 price_trend_ok_short and
+                 volume_ok and
+                 macd_ok_short)
+
+// PYRAMID SHORT Entry (already in short)
+pyramid_short_condition = (in_short and
+                           can_add_entry and
+                           spacing_ok and
+                           ema_full_bear_align and
+                           strong_trend and
+                           (use_pyramid_pullback ? (rsi > (100 - pullback_rsi_threshold)) : true) and
+                           ((close < last_entry_price - (atr * pyramid_spacing_atr)) or (use_pyramid_pullback == false)))
 
 // Final conditions
 long_condition = initial_long or pyramid_long_condition
