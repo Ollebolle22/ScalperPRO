@@ -211,7 +211,7 @@ pyramid_long_condition = in_long and
                          ema_full_bull_align and
                          strong_trend and
                          (use_pyramid_pullback ? (rsi < pullback_rsi_threshold) : true) and
-                         (close > last_entry_price + (atr * pyramid_spacing_atr) or use_pyramid_pullback == false)
+                         ((close > last_entry_price + (atr * pyramid_spacing_atr)) or (use_pyramid_pullback == false))
 
 // INITIAL SHORT Entry (no position)
 initial_short = no_position and
@@ -231,7 +231,7 @@ pyramid_short_condition = in_short and
                           ema_full_bear_align and
                           strong_trend and
                           (use_pyramid_pullback ? (rsi > (100 - pullback_rsi_threshold)) : true) and
-                          (close < last_entry_price - (atr * pyramid_spacing_atr) or use_pyramid_pullback == false)
+                          ((close < last_entry_price - (atr * pyramid_spacing_atr)) or (use_pyramid_pullback == false))
 
 // Final conditions
 long_condition = initial_long or pyramid_long_condition
