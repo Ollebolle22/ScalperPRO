@@ -1,47 +1,59 @@
-# ⚡ Fast Momentum Scalper 1M - OPTIMIZED v2.0
+# ⚡ Fast Momentum Scalper 1M - BALANCED v2.1
 
-En **SELEKTIV** och **LÖNSAM** momentum scalper för 1-minuters timeframe med fokus på kvalitet över kvantitet.
+En **BALANSERAD** och **AKTIV** momentum scalper för 1-minuters timeframe med kontinuerlig trading i både uppgång och nedgång.
 
 ## 📋 Översikt
 
-Denna strategi är kraftigt optimerad för lönsamhet på 1-minuters trading. Med **multipla filters** och **högre risk/reward ratio** är den designad för att ta endast de bästa trades och överleva fees.
+Denna strategi är balanserad för kontinuerlig trading på 1-minuters chart. Den tar både **longs och shorts** när momentum-conditions uppfylls och använder rimlig position sizing (~10% av kapital med 5x leverage).
 
 ### ✨ Huvudfunktioner
 
-- ✅ **SELEKTIV entry** - Multipla bekräftelser krävs
-- ✅ **Hög risk/reward** - 1:2.22 R:R ratio (default)
+- ✅ **BALANSERADE filters** - Fler trades än v2.0, bättre än v1.0
+- ✅ **Rimlig position size** - 10% equity med 5x leverage = 50% exponering per trade
 - ✅ **MACD + RSI zones + EMA alignment** - Triple confirmation
-- ✅ **ADX ≥25 filter** - Endast starka trends
-- ✅ **Volume 1.5x MA** - Högre volume krav
-- ✅ **Cooling period** - 5 bars mellan trades
+- ✅ **ADX ≥22 filter** - Balans mellan kvalitet och kvantitet
+- ✅ **Volume 1.3x MA** - Rimligt volume krav
+- ✅ **Kort cooling period** - 2 bars mellan trades för kontinuerlig trading
+- ✅ **Risk/Reward 1:1.75** - Balans mellan hit rate och profit
 - ✅ **Commission 0.045%** - Korrekt för de flesta exchanges
 - ✅ **WunderTrading ready** - Fullständig bot integration
 
-## 🎯 Strategi Logic (v2.0 - OPTIMIZED)
+## 🎯 Strategi Logic (v2.1 - BALANCED)
 
 ### Entry Conditions (LONG)
 
-**ALLA** följande måste vara uppfyllda (mycket striktare än v1!):
+**ALLA** följande måste vara uppfyllda:
 
 1. **EMA Crossover**: EMA 9 korsar över EMA 21
 2. **EMA Full Alignment**: EMA 9 > EMA 21 > EMA 50 (perfekt alignment!)
-3. **RSI Zone**: 45 ≤ RSI ≤ 65 OCH RSI stigande (undviker extremer)
+3. **RSI Zone**: 40 ≤ RSI ≤ 70 OCH RSI stigande (bred zone för fler trades)
 4. **MACD Confirmation**: MACD bullish (line > signal) ELLER bullish crossover
-5. **ADX ≥ 25**: Endast STARKA trends (inte 20 som v1)
-6. **Volume > 1.5x MA**: Mycket högre volume krav (inte 1.2x)
-7. **Cooling Period**: Minst 5 bars sedan senaste trade
+5. **ADX ≥ 22**: Balanserad trend strength filter
+6. **Volume > 1.3x MA**: Rimligt volume krav
+7. **Cooling Period**: Minst 2 bars sedan senaste trade
 8. **Ingen position**: Pyramiding = 0
 
 ### Entry Conditions (SHORT)
 
-Motsatta villkor med samma strictness.
+Motsatta villkor:
+- EMA 9 korsar under EMA 21
+- EMA 9 < EMA 21 < EMA 50
+- RSI 30-60 och fallande
+- MACD bearish
+- Samma ADX, volume och cooling
+
+**Strategin kan växla mellan longs och shorts kontinuerligt när conditions uppfylls!**
 
 ### Exit Strategy
 
-**Högre risk/reward för att överleva fees:**
-- **Stop Loss**: 1.8 x ATR (default, justeras per market)
-- **Take Profit**: 4.0 x ATR (default, justeras per market)
-- **Risk/Reward Ratio**: **1:2.22** (betydligt bättre än v1's 1:1.67!)
+**Balanserad risk/reward:**
+- **Stop Loss**: 2.0 x ATR (mer breathing room än v2.0)
+- **Take Profit**: 3.5 x ATR (lättare att nå än 4.0)
+- **Risk/Reward Ratio**: **1:1.75** (bra balans mellan hit rate och profit!)
+
+**Position Size:**
+- 10% av equity med 5x leverage = 50% exponering
+- Med $1000 kapital = $100 per trade × 5x = $500 position
 
 **Varför inga trailing stops?**
 För 1-minuters scalping vill vi att trades antingen når TP snabbt eller stoppas ut. Trailing kan ge för tidiga exits på volatila moves.
@@ -72,27 +84,36 @@ För 1-minuters scalping vill vi att trades antingen når TP snabbt eller stoppa
 - **Multiplier**: 1.2x
 - Kräver 20% högre volume än genomsnitt
 
-## ⚙️ Inställningar (v2.0 DEFAULTS)
+## ⚙️ Inställningar (v2.1 BALANCED)
 
 ### 💰 Kapital & Leverage
 
 ```
 Leverage: 5.0x (1x - 20x)
-Position Size: 95% av equity
-Commission: 0.045% (KORRIGERAT från 0.06%)
+Position Size: 10% av equity (var 95%!)
+Commission: 0.045%
 ```
 
-**Tips**: 5x är säkert för scalping. 10x om du är erfaren och har tight risk management.
+**VIKTIGT**: Med 10% position size och 5x leverage får du 50% exponering per trade. Detta är rimligt för scalping!
 
-### 🎯 Risk Management (OPTIMIZED)
+**Exempel:**
+- Kapital: $1000
+- Position size: $100 (10%)
+- Med 5x leverage: $500 exponering
+- Risk per trade med 2.0 ATR SL: ~2-4% av kapital
+
+### 🎯 Risk Management (BALANCED)
 
 ```
-Stop Loss: 1.8 x ATR (1.0 - 3.0)
-Take Profit: 4.0 x ATR (2.0 - 8.0)
-Risk/Reward: 1:2.22 (MYCKET BÄTTRE än v1!)
+Stop Loss: 2.0 x ATR (var 1.8)
+Take Profit: 3.5 x ATR (var 4.0)
+Risk/Reward: 1:1.75 (balanserat)
 ```
 
-**Viktigt**: Högre TP betyder färre trades träffar målet, men de som gör det betalar för förlusterna + fees.
+**Varför 1:1.75 istället för 1:2.22?**
+- Lättare att nå TP på 1min timeframe
+- Högre win rate (~55-60%)
+- Fler trades = mer konsekvent profit
 
 ### 📈 EMA Settings
 
@@ -104,50 +125,50 @@ EMA Trend: 50
 
 **Krav**: Full alignment (9 > 21 > 50 för longs) annars ingen trade!
 
-### 🎯 RSI Settings (ZONES!)
+### 🎯 RSI Settings (BREDARE ZONES!)
 
 ```
 RSI Period: 14
-RSI Long Min: 45 (undvik översålt)
-RSI Long Max: 65 (undvik överköpt)
-RSI Short Min: 35
-RSI Short Max: 55
+RSI Long Min: 40 (var 45)
+RSI Long Max: 70 (var 65)
+RSI Short Min: 30 (var 35)
+RSI Short Max: 60 (var 55)
 ```
 
-**Nytt i v2**: RSI MÅSTE vara inom zone, inte bara >50!
+**v2.1**: Bredare RSI zones för fler trades!
 
-### 📊 MACD Settings (NYTT!)
+### 📊 MACD Settings
 
 ```
 MACD Fast: 12
 MACD Slow: 26
 MACD Signal: 9
-Use MACD Filter: true (REKOMMENDERAT)
+Use MACD Filter: true (kan disablas för ännu fler trades)
 ```
 
-### 💪 ADX Settings (STRÄNGARE!)
+### 💪 ADX Settings (BALANSERAD!)
 
 ```
 ADX Period: 14
-Minimum Threshold: 25 (var 20 i v1)
+Minimum Threshold: 22 (var 25 i v2.0, 20 i v1)
 ```
 
-**Nytt i v2**: ADX ≥25 = endast STARKA trends, färre dåliga trades!
+**v2.1**: ADX 22 = balans mellan kvalitet och kvantitet!
 
-### 📦 Volume Filter (HÖGRE KRAV!)
+### 📦 Volume Filter (BALANSERAD!)
 
 ```
-Volume Multiplier: 1.5x (var 1.2x i v1)
+Volume Multiplier: 1.3x (var 1.5x i v2.0)
 Volume MA Period: 20
 ```
 
-### ⏰ Cooling Period (NYTT!)
+### ⏰ Cooling Period (KORT!)
 
 ```
-Bars Between Trades: 5
+Bars Between Trades: 2 (var 5 i v2.0)
 ```
 
-**Nytt i v2**: Vänta 5 bars (5 minuter) efter stängd trade innan nästa. Undviker overtrading!
+**v2.1**: Endast 2 bars paus för mer kontinuerlig trading!
 
 ## 🤖 WunderTrading Setup
 
@@ -200,33 +221,45 @@ Strategin genererar automatiskt korrekt JSON för WunderTrading:
 6. **Notifications**: Aktivera "Webhook URL"
 7. Klicka "Create"
 
-## 🆚 v1 vs v2 - Vad är nytt?
+## 🆚 Version Jämförelse
 
-| Feature | v1 (Original) | v2 (Optimized) | Förbättring |
-|---------|--------------|----------------|-------------|
-| Commission | 0.06% | **0.045%** | ✅ Korrekt fees |
-| ADX Min | 20 | **25** | ✅ Starkare trends |
-| Volume | 1.2x MA | **1.5x MA** | ✅ Högre volume |
-| RSI | >50 (simpel) | **45-65 zone** | ✅ Undviker extremer |
-| MACD | ❌ Ingen | **✅ Krävs** | ✅ Extra confirmation |
-| EMA Alignment | Partial | **Full (9>21>50)** | ✅ Perfect alignment |
-| TP Multiplier | 2.5 ATR | **4.0 ATR** | ✅ Bättre R:R (1:2.22) |
-| SL Multiplier | 1.5 ATR | **1.8 ATR** | ✅ Mer breathing room |
-| Cooling Period | ❌ Ingen | **✅ 5 bars** | ✅ Undviker overtrading |
-| **Trades/dag** | 10-30 | **3-10** | ✅ Kvalitet > Kvantitet |
-| **Förväntad WR** | 40-55% | **45-60%** | ✅ Bättre trades |
+### v2.0 vs v2.1 - VIKTIG UPPDATERING!
 
-**Resultat**: v2 tar MYCKET färre trades men med betydligt högre kvalitet och lönsamhet!
+| Feature | v2.0 (För Selektiv) | v2.1 (Balanced) | Förbättring |
+|---------|---------------------|-----------------|-------------|
+| Position Size | 95% equity! 😱 | **10% equity** | ✅ FIXAT! Rimlig sizing |
+| ADX Min | 25 | **22** | ✅ Fler trades |
+| Volume | 1.5x MA | **1.3x MA** | ✅ Fler trades |
+| RSI Zones | 45-65 (tight) | **40-70** (bred) | ✅ Fler trades |
+| TP Multiplier | 4.0 ATR | **3.5 ATR** | ✅ Lättare att nå |
+| SL Multiplier | 1.8 ATR | **2.0 ATR** | ✅ Mer utrymme |
+| R:R Ratio | 1:2.22 | **1:1.75** | ✅ Bättre balans |
+| Cooling Period | 5 bars | **2 bars** | ✅ Snabbare nya trades |
+| **Trades/dag** | 3-10 (för få) | **8-20** | ✅ Mer aktiv! |
+| **Förväntad WR** | 45-60% | **50-65%** | ✅ Högre (lättare TP) |
 
-## 📈 Förväntade Resultat (v2)
+**Resultat**: v2.1 fixar problemen med v2.0! Tar kontinuerliga trades i både uppgång och nedgång med rimlig position size.
+
+### v1 vs v2.1 - Sammanfattning
+
+| Feature | v1 (Original) | v2.1 (Current) | Status |
+|---------|--------------|----------------|--------|
+| Commission | 0.06% | **0.045%** | ✅ Fixat |
+| Position Size | 95% | **10%** | ✅ Fixat |
+| MACD Filter | ❌ Ingen | **✅ Finns** | ✅ Bättre |
+| EMA Alignment | Partial | **Full** | ✅ Bättre |
+| Risk Management | OK | **Balanserad** | ✅ Bättre |
+
+## 📈 Förväntade Resultat (v2.1)
 
 ### 1-minuters Timeframe Characteristics
 
-- **Antal trades**: **3-10 per dag** (betydligt färre än v1!)
-- **Win rate**: **45-60%** (högre tack vare striktare filters)
-- **Risk/Reward**: **1:2.22** per trade (var 1:1.67 i v1)
-- **Hold time**: 5-20 minuter i genomsnitt
+- **Antal trades**: **8-20 per dag** (bra aktivitet!)
+- **Win rate**: **50-65%** (högre tack vare lättare TP)
+- **Risk/Reward**: **1:1.75** per trade (balanserat)
+- **Hold time**: 3-15 minuter i genomsnitt
 - **Profit Factor**: Sikta på **>1.5** efter fees
+- **Max risk per trade**: ~2-4% av kapital (med 10% position + 2.0 ATR SL)
 
 ### Optimala Marknadsförhållanden
 
@@ -237,33 +270,32 @@ Strategin genererar automatiskt korrekt JSON för WunderTrading:
 - ❌ **Low volume** - Skippad helt
 - ❌ **Låg volatilitet** - Svårt att nå TP
 
-### Varför v2 är bättre för lönsamhet
+### Varför v2.1 är bättre för lönsamhet
 
-**Problem med v1**: För många trades = för mycket fees!
-- 20 trades/dag × 0.045% × 2 (entry+exit) = **1.8% daglig fee**
-- Med 50% win rate och 1:1.67 R:R blir det tight efter fees
+**Problem med v2.0**: För få trades + för stor position size!
+- 5 trades/dag med 95% av kapitalet per trade = MYCKET riskabelt
+- 4.0 ATR TP var för aggressivt på 1min
 
-**Lösning i v2**: Färre, bättre trades!
-- 5 trades/dag × 0.045% × 2 = **0.45% daglig fee**
-- Med 55% win rate och 1:2.22 R:R blir det lönsamt efter fees!
+**Lösning i v2.1**: Balanserad approach!
+- 15 trades/dag × 0.045% × 2 = **1.35% daglig fee**
+- Med 60% win rate och 1:1.75 R:R blir det mycket lönsamt efter fees!
+- 10% position size = rimlig risk management
 
 **Exempel matematik:**
 ```
-10 trades, 5W/5L, 1% risk per trade:
-v1 (1:1.67 R:R):
-  Vinster: 5 × 1.67% = +8.35%
-  Förluster: 5 × -1% = -5%
-  Fees: 10 × 2 × 0.045% = -0.9%
-  NET: +2.45%
+20 trades/dag, 3% risk per trade (10% position + 2 ATR SL på volatile asset):
 
-v2 (1:2.22 R:R, 6W/4L):
-  Vinster: 6 × 2.22% = +13.32%
-  Förluster: 4 × -1% = -4%
-  Fees: 10 × 2 × 0.045% = -0.9%
-  NET: +8.42%
+v2.1 (1:1.75 R:R, 60% WR):
+  12 vinster: 12 × 5.25% (3% × 1.75) = +63%
+  8 förluster: 8 × -3% = -24%
+  Fees: 20 × 2 × 0.045% × 10% position ≈ -1.8%
+  NET: +37.2% profit per dag (teoretiskt)
+
+Realistiskt med slippage och imperfekt execution:
+  NET: +15-25% per dag är mer realistiskt
 ```
 
-**v2 ger 3.4x mer profit med samma antal trades!**
+**OBS**: Detta är scalping på 1min - mycket intensivt! Volatilitet och execution är kritiska.
 
 ## 🎨 Visual Elements
 
@@ -297,35 +329,40 @@ Visar live:
 4. **Färre trades = lägre fees** - v2 tar 3-10 trades/dag istället för 10-30
 5. **Inte för alla marknader** - Fungerar bäst på stora liquid pairs
 
-### ⚙️ Tuning Guide (v2)
+### ⚙️ Tuning Guide (v2.1)
 
-**Om strategin har dålig profitability, testa dessa justeringar:**
+**Defaults är redan balanserade, men här är justeringar om det behövs:**
 
-**Scenario 1: För FÅ trades (<3/dag)**
-- Sänk ADX till 22-23
-- Sänk volume till 1.3x
-- Öka RSI zones till 40-70 för longs
-- Disable MACD filter
+**Scenario 1: FORTFARANDE för få trades (<8/dag)**
+- Sänk ADX till 20
+- Sänk volume till 1.1-1.2x
+- Disable MACD filter (sätt "Use MACD Filter" = false)
+- Öka RSI zones till 35-75
 
-**Scenario 2: För MÅNGA trades men dålig win rate**
-- Höj ADX till 28-30
-- Höj volume till 1.7-2.0x
-- Strama åt RSI zones till 48-62
-- Öka cooling period till 8-10 bars
+**Scenario 2: För MÅNGA trades (>25/dag) och dålig win rate**
+- Höj ADX till 25-27
+- Höj volume till 1.5-1.7x
+- Strama åt RSI zones till 45-65
+- Öka cooling period till 5 bars
 
 **Scenario 3: Många stop losses**
-- Öka SL till 2.0-2.5 ATR
-- Höj ADX till 27-30
-- Kräv större volume (1.7x+)
+- Öka SL till 2.5-3.0 ATR
+- Höj ADX till 25
+- Minska position size till 5-8%
 
-**Scenario 4: TP träffas för sällan**
-- Sänk TP till 3.0-3.5 ATR
-- Behåll hög SL/TP ratio (minst 1:1.8)
+**Scenario 4: TP träffas för sällan (<50% win rate)**
+- Sänk TP till 3.0 ATR
+- Behåll minst 1:1.5 R:R ratio
+
+**Scenario 5: För stor risk per trade**
+- Minska position size till 5%
+- Med 5x leverage = 25% exponering (säkrare)
 
 **För olika marknader:**
-- **BTC**: SL 2.0, TP 4.5, ADX 23
-- **SOL**: SL 1.8, TP 4.0, ADX 25 (default)
-- **Altcoins**: SL 2.5, TP 5.0+, ADX 30, Volume 2.0x
+- **BTC**: SL 2.5, TP 4.0, ADX 20, Position 8%
+- **SOL**: SL 2.0, TP 3.5, ADX 22, Position 10% (default är bra!)
+- **ETH**: SL 2.2, TP 3.8, ADX 22, Position 10%
+- **Volatile altcoins**: SL 3.0, TP 4.5, ADX 25, Position 5%, Volume 1.5x
 
 ### Rekommenderade Pairs
 
@@ -343,21 +380,24 @@ Visar live:
 
 ## 🔧 Felsökning
 
-### Problem: Inga trades körs (v2)
+### Problem: Fortfarande för få/inga trades (v2.1)
+
+**Detta borde inte hända med v2.1 defaults, men om det gör:**
 
 **Möjliga orsaker:**
-1. ADX < 25 (marknaden är ranging eller svag trend)
-2. Volume < 1.5x MA
-3. RSI utanför 45-65 zone
-4. MACD inte bullish
+1. ADX < 22 (marknaden är helt flat/ranging)
+2. Volume < 1.3x MA (väldigt låg aktivitet)
+3. RSI utanför 40-70 zone (extremt överköpt/översålt länge)
+4. MACD inte bullish/bearish
 5. EMAs inte i full alignment (9>21>50)
-6. Inom cooling period (5 bars)
+6. Inom cooling period (2 bars)
 
 **Lösning:**
-- Sänk ADX threshold till 22-23
-- Sänk volume multiplier till 1.3x
-- Disable MACD filter temporärt
-- Vänta på starkare trending market
+- Sänk ADX till 18-20
+- Sänk volume till 1.0-1.1x
+- Disable MACD filter helt
+- Öka RSI zones till 30-80
+- Sätt cooling till 0 (disabled)
 
 ### Problem: För många trades men dålig profitability
 

@@ -6,7 +6,7 @@ strategy("⚡ Fast Momentum Scalper 1M",
          calc_on_every_tick=false,
          process_orders_on_close=true,
          default_qty_type=strategy.percent_of_equity,
-         default_qty_value=95,
+         default_qty_value=10,
          initial_capital=1000,
          currency=currency.USD,
          commission_type=strategy.commission.percent,
@@ -16,13 +16,14 @@ strategy("⚡ Fast Momentum Scalper 1M",
 // ═══════════════════════════════════════════════════════════════════════════════
 // 📊 STRATEGI BESKRIVNING
 // ═══════════════════════════════════════════════════════════════════════════════
-// SELEKTIV momentum scalper för 1-minuters timeframe
-// - HÖGKVALITATIVA trades med starka filters
-// - RSI zones (45-65 för longs) + EMA full alignment + MACD
-// - ADX ≥25 (endast starka trends) + Volume 1.5x MA
-// - Enkel SL (1.8 ATR) och TP (4.0 ATR) = 1:2.22 R:R
-// - Cooling period (5 bars) mellan trades
-// - Ingen DCA - ren kvalitets-scalping
+// BALANSERAD momentum scalper för 1-minuters timeframe
+// - RSI zones (40-70 för longs) + EMA full alignment + MACD
+// - ADX ≥22 (balans mellan kvalitet och kvantitet) + Volume 1.3x MA
+// - Position size 10% med 5x leverage = 50% exponering
+// - SL (2.0 ATR) och TP (3.5 ATR) = 1:1.75 R:R
+// - Cooling period (2 bars) mellan trades för kontinuerlig trading
+// - Tar både longs och shorts när conditions uppfylls
+// - Ingen DCA - ren momentum scalping
 // - Commission 0.045% - Optimerad för lönsamhet!
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -32,7 +33,7 @@ strategy("⚡ Fast Momentum Scalper 1M",
 
 // 💰 Kapital & Leverage
 leverage = input.float(5.0, "Leverage", minval=1.0, maxval=20.0, step=0.5, group="💰 Kapital & Leverage", tooltip="Trading leverage (5x rekommenderat för scalping)")
-position_size_pct = input.float(95.0, "Position Size %", minval=10, maxval=100, step=5, group="💰 Kapital & Leverage", tooltip="Procent av equity att använda per trade")
+position_size_pct = input.float(10.0, "Position Size %", minval=5, maxval=50, step=5, group="💰 Kapital & Leverage", tooltip="Procent av equity att använda per trade (10% med 5x leverage = 50% exponering)")
 
 // 📈 EMA Inställningar
 ema_fast_length = input.int(9, "EMA Fast", minval=5, maxval=21, group="📈 EMA Inställningar", tooltip="Snabb EMA för momentum (9 för 1min)")
@@ -41,10 +42,10 @@ ema_trend_length = input.int(50, "EMA Trend", minval=21, maxval=200, group="📈
 
 // 🎯 RSI Momentum
 rsi_length = input.int(14, "RSI Period", minval=7, maxval=21, group="🎯 RSI Momentum", tooltip="RSI period för momentum")
-rsi_long_min = input.int(45, "RSI Long Min", minval=30, maxval=55, group="🎯 RSI Momentum", tooltip="Minimum RSI för longs (undvik översålt)")
-rsi_long_max = input.int(65, "RSI Long Max", minval=55, maxval=75, group="🎯 RSI Momentum", tooltip="Maximum RSI för longs (undvik överköpt)")
-rsi_short_min = input.int(35, "RSI Short Min", minval=25, maxval=45, group="🎯 RSI Momentum", tooltip="Minimum RSI för shorts")
-rsi_short_max = input.int(55, "RSI Short Max", minval=45, maxval=70, group="🎯 RSI Momentum", tooltip="Maximum RSI för shorts")
+rsi_long_min = input.int(40, "RSI Long Min", minval=30, maxval=55, group="🎯 RSI Momentum", tooltip="Minimum RSI för longs (undvik översålt)")
+rsi_long_max = input.int(70, "RSI Long Max", minval=55, maxval=75, group="🎯 RSI Momentum", tooltip="Maximum RSI för longs (undvik överköpt)")
+rsi_short_min = input.int(30, "RSI Short Min", minval=25, maxval=45, group="🎯 RSI Momentum", tooltip="Minimum RSI för shorts")
+rsi_short_max = input.int(60, "RSI Short Max", minval=45, maxval=70, group="🎯 RSI Momentum", tooltip="Maximum RSI för shorts")
 
 // 📊 MACD Confirmation
 macd_fast = input.int(12, "MACD Fast", minval=8, maxval=15, group="📊 MACD", tooltip="MACD fast length")
@@ -54,19 +55,19 @@ use_macd = input.bool(true, "Use MACD Filter", group="📊 MACD", tooltip="Kräv
 
 // 💪 ADX Trend Strength
 adx_length = input.int(14, "ADX Period", minval=7, maxval=21, group="💪 ADX Trend Strength", tooltip="ADX period")
-adx_threshold = input.float(25.0, "ADX Minimum", minval=15.0, maxval=35.0, step=1.0, group="💪 ADX Trend Strength", tooltip="Minimum ADX för att ta trades (25 = starkare trends)")
+adx_threshold = input.float(22.0, "ADX Minimum", minval=15.0, maxval=35.0, step=1.0, group="💪 ADX Trend Strength", tooltip="Minimum ADX för att ta trades (22 = balans mellan antal trades och kvalitet)")
 
 // 📦 Volume Filter
-volume_multiplier = input.float(1.5, "Volume Multiplier", minval=1.0, maxval=2.5, step=0.1, group="📦 Volume Filter", tooltip="Minimum volume vs MA (1.5 = 50% över genomsnitt)")
+volume_multiplier = input.float(1.3, "Volume Multiplier", minval=1.0, maxval=2.5, step=0.1, group="📦 Volume Filter", tooltip="Minimum volume vs MA (1.3 = 30% över genomsnitt)")
 volume_ma_length = input.int(20, "Volume MA Period", minval=10, maxval=50, group="📦 Volume Filter", tooltip="Period för volume moving average")
 
 // 🎯 Risk Management (Enkel SL/TP)
 atr_length = input.int(14, "ATR Period", minval=7, maxval=21, group="🎯 Risk Management", tooltip="ATR period för SL/TP beräkning")
-sl_atr_multiplier = input.float(1.8, "Stop Loss (ATR x)", minval=1.0, maxval=3.0, step=0.1, group="🎯 Risk Management", tooltip="Stop loss distans (ATR multiplier)")
-tp_atr_multiplier = input.float(4.0, "Take Profit (ATR x)", minval=2.0, maxval=8.0, step=0.5, group="🎯 Risk Management", tooltip="Take profit distans (ATR multiplier) - Högre för bättre R:R")
+sl_atr_multiplier = input.float(2.0, "Stop Loss (ATR x)", minval=1.0, maxval=3.0, step=0.1, group="🎯 Risk Management", tooltip="Stop loss distans (ATR multiplier)")
+tp_atr_multiplier = input.float(3.5, "Take Profit (ATR x)", minval=2.0, maxval=8.0, step=0.5, group="🎯 Risk Management", tooltip="Take profit distans (ATR multiplier) - Balans mellan hit rate och profit")
 
 // ⏰ Cooling Period
-bars_between_trades = input.int(5, "Bars Between Trades", minval=0, maxval=20, group="⏰ Timing", tooltip="Minimum bars att vänta efter stängd trade (0 = disabled)")
+bars_between_trades = input.int(2, "Bars Between Trades", minval=0, maxval=20, group="⏰ Timing", tooltip="Minimum bars att vänta efter stängd trade (2 = kort paus)")
 
 // 🤖 Bot Configuration (WunderTrading)
 bot_id = input.string("your_bot_id_here", "Bot ID", group="🤖 Bot Config", tooltip="WunderTrading bot ID")
