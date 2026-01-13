@@ -23,6 +23,17 @@ rsiLimitLong = input.float(50, "Max RSI för long pyramidköp", step=1, group="F
 rsiLimitShort = input.float(50, "Min RSI för short pyramidköp", step=1, group="Filter")
 minBarsBetweenPyramids = input.int(3, "Minsta antal bars mellan pyramidköp", minval=1, group="Filter")
 
+// Stoploss inställningar
+slAtrMult = input.float(2.0, "Stop Loss (ATR x)", minval=1.0, maxval=5.0, step=0.1, group="🎯 Risk Management", tooltip="Stop loss distans i ATR från entry")
+
+// Breakeven & Trailing
+useBreakeven = input.bool(true, "Use Breakeven Move", group="🎯 Trailing & Breakeven", tooltip="Flytta SL till break-even vid profit")
+breakevenActivation = input.float(1.5, "Breakeven at (R)", minval=0.5, maxval=3.0, step=0.1, group="🎯 Trailing & Breakeven", tooltip="Flytta till breakeven vid X × risk")
+breakevenBuffer = input.float(0.1, "Breakeven Buffer (ATR x)", minval=0.0, maxval=0.5, step=0.05, group="🎯 Trailing & Breakeven", tooltip="Buffer över break-even")
+
+// Cooling period
+barsAfterExit = input.int(5, "Bars After Exit", minval=0, maxval=20, group="⏰ Timing", tooltip="Antal bars att vänta efter exit innan ny entry tillåts")
+
 // === BERÄKNINGAR ===
 hma = ta.hma(close, hmaLen)
 atr = ta.atr(atrLen)
@@ -40,14 +51,23 @@ var bool previousCanEnterLong = true
 var bool previousCanEnterShort = true
 var int lastLongPyramidBarIndex = na
 var int lastShortPyramidBarIndex = na
+var float initialLongEntryPrice = 0.0
+var float initialShortEntryPrice = 0.0
+var float longRiskAmount = 0.0
+var float shortRiskAmount = 0.0
+var int lastExitBar = 0
 
 // === ENTRY CONDITIONS ===
+// Cooling period check
+barsSinceExit = bar_index - lastExitBar
+coolingPeriodOk = barsSinceExit >= barsAfterExit
+
 // Long conditions
-canEnterLong = strategy.position_size == 0 and hmaSlopeLong and bullTrend and close > ma200_4h and (tradingMode == "Long Only" or tradingMode == "Long & Short")
+canEnterLong = strategy.position_size == 0 and hmaSlopeLong and bullTrend and close > ma200_4h and (tradingMode == "Long Only" or tradingMode == "Long & Short") and coolingPeriodOk
 enterLong = canEnterLong and not previousCanEnterLong
 
 // Short conditions
-canEnterShort = strategy.position_size == 0 and hmaSlopeShort and bearTrend and close < ma200_4h and (tradingMode == "Short Only" or tradingMode == "Long & Short")
+canEnterShort = strategy.position_size == 0 and hmaSlopeShort and bearTrend and close < ma200_4h and (tradingMode == "Short Only" or tradingMode == "Long & Short") and coolingPeriodOk
 enterShort = canEnterShort and not previousCanEnterShort
 
 // Funktion för att beräkna quantity
@@ -67,6 +87,8 @@ if enterLong
     strategy.entry("LONG_" + str.tostring(longEntryCount + 1), strategy.long, qty=qtyVal)
     label.new(bar_index, low * 0.97, text="Första Long\nPris: " + str.tostring(close, format.mintick) + "\nRSI: " + str.tostring(rsi, format.mintick), style=label.style_label_up, color=color.teal, textcolor=color.white)
     longEntryCount += 1
+    initialLongEntryPrice := close
+    longRiskAmount := atr * slAtrMult
 
 // === FÖRSTA KÖP SHORT ===
 if enterShort
@@ -74,6 +96,8 @@ if enterShort
     strategy.entry("SHORT_" + str.tostring(shortEntryCount + 1), strategy.short, qty=qtyVal)
     label.new(bar_index, high * 1.03, text="Första Short\nPris: " + str.tostring(close, format.mintick) + "\nRSI: " + str.tostring(rsi, format.mintick), style=label.style_label_down, color=color.orange, textcolor=color.white)
     shortEntryCount += 1
+    initialShortEntryPrice := close
+    shortRiskAmount := atr * slAtrMult
 
 // === PYRAMIDKÖP LONG ===
 longPyramidThreshold = strategy.position_avg_price - atr * pyramidATRmult
@@ -103,65 +127,179 @@ if isShortRise
     shortEntryCount += 1
     lastShortPyramidBarIndex := bar_index
 
-// === EXIT LONG ===
-longTpPrice = strategy.position_avg_price + atr * atrMultTP
-longTrailOffset = longTpPrice * (trailOffsetPct / 100)
+// === EXIT MANAGEMENT ===
+// LONG Position Management
+if strategy.position_size > 0
+    profitPoints = close - initialLongEntryPrice
+    profitInR = profitPoints / longRiskAmount
 
-if strategy.position_size > 0 and close >= longTpPrice
-    strategy.exit("Exit_Long", from_entry="", trail_price=close, trail_offset=longTrailOffset)
+    // Initial stop loss
+    initialSL = initialLongEntryPrice - (atr * slAtrMult)
 
-// === EXIT SHORT ===
-shortTpPrice = strategy.position_avg_price - atr * atrMultTP
-shortTrailOffset = shortTpPrice * (trailOffsetPct / 100)
+    // TP-nivå för trailing
+    longTpPrice = strategy.position_avg_price + atr * atrMultTP
+    longTrailOffset = longTpPrice * (trailOffsetPct / 100)
 
-if strategy.position_size < 0 and close <= shortTpPrice
-    strategy.exit("Exit_Short", from_entry="", trail_price=close, trail_offset=shortTrailOffset)
+    // Breakeven move
+    if useBreakeven and profitInR >= breakevenActivation
+        breakevenPrice = initialLongEntryPrice + (atr * breakevenBuffer)
+        strategy.exit("LONG_EXIT", "LONG", stop=breakevenPrice)
+
+    // Trailing stop (aktiveras när TP nås)
+    else if close >= longTpPrice
+        strategy.exit("LONG_EXIT", "LONG", trail_price=close, trail_offset=longTrailOffset)
+
+    // Initial SL
+    else
+        strategy.exit("LONG_EXIT", "LONG", stop=initialSL)
+
+// SHORT Position Management
+if strategy.position_size < 0
+    profitPoints = initialShortEntryPrice - close
+    profitInR = profitPoints / shortRiskAmount
+
+    // Initial stop loss
+    initialSL = initialShortEntryPrice + (atr * slAtrMult)
+
+    // TP-nivå för trailing
+    shortTpPrice = strategy.position_avg_price - atr * atrMultTP
+    shortTrailOffset = shortTpPrice * (trailOffsetPct / 100)
+
+    // Breakeven move
+    if useBreakeven and profitInR >= breakevenActivation
+        breakevenPrice = initialShortEntryPrice - (atr * breakevenBuffer)
+        strategy.exit("SHORT_EXIT", "SHORT", stop=breakevenPrice)
+
+    // Trailing stop (aktiveras när TP nås)
+    else if close <= shortTpPrice
+        strategy.exit("SHORT_EXIT", "SHORT", trail_price=close, trail_offset=shortTrailOffset)
+
+    // Initial SL
+    else
+        strategy.exit("SHORT_EXIT", "SHORT", stop=initialSL)
 
 // === RESET COUNTERS ===
-if strategy.position_size == 0
+wasInPosition = strategy.position_size[1] != 0
+nowNoPosition = strategy.position_size == 0
+
+if wasInPosition and nowNoPosition
+    lastExitBar := bar_index
     longEntryCount := 0
     shortEntryCount := 0
     lastLongPyramidBarIndex := na
     lastShortPyramidBarIndex := na
+    initialLongEntryPrice := 0.0
+    initialShortEntryPrice := 0.0
 
 // === PLOTTNING ===
 plot(hma, title="HMA", color=color.yellow, linewidth=2)
 plot(strategy.position_size != 0 ? strategy.position_avg_price : na, title="Inköpspris", color=color.orange, linewidth=2)
+plot(ma200_4h, title="MA200 (4h)", color=color.white, linewidth=1, style=plot.style_line)
 
 // Long plots
+longSLPlot = strategy.position_size > 0 ? initialLongEntryPrice - (atr * slAtrMult) : na
+longTPPlot = strategy.position_size > 0 ? strategy.position_avg_price + atr * atrMultTP : na
+longBEPlot = strategy.position_size > 0 and useBreakeven and (close - initialLongEntryPrice) / longRiskAmount >= breakevenActivation ? initialLongEntryPrice + (atr * breakevenBuffer) : na
+
 plot(strategy.position_size > 0 ? longPyramidThreshold : na, title="Long Pyramidnivå", color=color.purple, style=plot.style_stepline)
-plot(strategy.position_size > 0 ? longTpPrice : na, title="Long TP-linje", color=color.green, style=plot.style_stepline, linewidth=2)
+plot(longTPPlot, title="Long TP", color=color.green, style=plot.style_stepline, linewidth=2)
+plot(longSLPlot, title="Long SL", color=color.red, style=plot.style_stepline, linewidth=2)
+plot(longBEPlot, title="Long Breakeven", color=color.blue, style=plot.style_cross, linewidth=2)
 
 // Short plots
+shortSLPlot = strategy.position_size < 0 ? initialShortEntryPrice + (atr * slAtrMult) : na
+shortTPPlot = strategy.position_size < 0 ? strategy.position_avg_price - atr * atrMultTP : na
+shortBEPlot = strategy.position_size < 0 and useBreakeven and (initialShortEntryPrice - close) / shortRiskAmount >= breakevenActivation ? initialShortEntryPrice - (atr * breakevenBuffer) : na
+
 plot(strategy.position_size < 0 ? shortPyramidThreshold : na, title="Short Pyramidnivå", color=color.maroon, style=plot.style_stepline)
-plot(strategy.position_size < 0 ? shortTpPrice : na, title="Short TP-linje", color=color.red, style=plot.style_stepline, linewidth=2)
-
-// ATR och RSI
-plot(atr, title="ATR", color=color.blue, linewidth=1)
-hline(50, "RSI Mitten", color=color.gray, linestyle=hline.style_dotted)
-
-// Trail stop lines
-var float longTrailStop = na
-var float shortTrailStop = na
-
-if strategy.position_size > 0 and close >= longTpPrice
-    longTrailStop := close - longTrailOffset
-else
-    longTrailStop := na
-
-if strategy.position_size < 0 and close <= shortTpPrice
-    shortTrailStop := close + shortTrailOffset
-else
-    shortTrailStop := na
-
-plot(longTrailStop, title="Long Trail Stop", color=color.red, style=plot.style_linebr, linewidth=2)
-plot(shortTrailStop, title="Short Trail Stop", color=color.lime, style=plot.style_linebr, linewidth=2)
+plot(shortTPPlot, title="Short TP", color=color.red, style=plot.style_stepline, linewidth=2)
+plot(shortSLPlot, title="Short SL", color=color.lime, style=plot.style_stepline, linewidth=2)
+plot(shortBEPlot, title="Short Breakeven", color=color.aqua, style=plot.style_cross, linewidth=2)
 
 // Background colors
 bgcolor(canEnterLong ? color.new(color.green, 85) : canEnterShort ? color.new(color.red, 85) : na, title="Entry Status")
 
-// MA200 plot
-plot(ma200_4h, title="MA200 (4h)", color=color.white, linewidth=1, style=plot.style_line)
+// === DASHBOARD ===
+var table dashboard = table.new(position.top_right, 2, 14, border_width=2, border_color=color.gray, frame_color=color.gray, frame_width=1)
+
+if barstate.islast
+    // Header
+    table.cell(dashboard, 0, 0, "📊 HMA Futures Pyramid v6", text_color=color.white, bgcolor=color.new(color.blue, 30), text_size=size.normal)
+    table.merge_cells(dashboard, 0, 0, 1, 0)
+
+    // HMA Trend
+    hmaColor = hmaSlopeLong ? color.green : hmaSlopeShort ? color.red : color.gray
+    hmaText = hmaSlopeLong ? "BULL" : hmaSlopeShort ? "BEAR" : "FLAT"
+    table.cell(dashboard, 0, 1, "HMA", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    table.cell(dashboard, 1, 1, hmaText, text_color=color.white, bgcolor=color.new(hmaColor, 70), text_size=size.small)
+
+    // RSI
+    rsiColor = rsi > 60 ? color.green : rsi < 40 ? color.red : color.gray
+    table.cell(dashboard, 0, 2, "RSI", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    table.cell(dashboard, 1, 2, str.tostring(rsi, "#.#"), text_color=color.white, bgcolor=color.new(rsiColor, 70), text_size=size.small)
+
+    // ATR
+    table.cell(dashboard, 0, 3, "ATR", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    table.cell(dashboard, 1, 3, str.tostring(atr, "#.####"), text_color=color.white, bgcolor=color.new(color.blue, 70), text_size=size.small)
+
+    // MA200 Filter
+    ma200Color = close > ma200_4h ? color.green : color.red
+    ma200Text = close > ma200_4h ? "ABOVE" : "BELOW"
+    table.cell(dashboard, 0, 4, "MA200 (4h)", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    table.cell(dashboard, 1, 4, ma200Text, text_color=color.white, bgcolor=color.new(ma200Color, 70), text_size=size.small)
+
+    // Position
+    posSize = strategy.position_size
+    posText = posSize > 0 ? "LONG" : posSize < 0 ? "SHORT" : "NONE"
+    posColor = posSize > 0 ? color.green : posSize < 0 ? color.red : color.gray
+    table.cell(dashboard, 0, 5, "Position", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    table.cell(dashboard, 1, 5, posText, text_color=color.white, bgcolor=color.new(posColor, 70), text_size=size.small)
+
+    // Entry Count
+    entryCountText = posSize > 0 ? str.tostring(longEntryCount) : posSize < 0 ? str.tostring(shortEntryCount) : "0"
+    table.cell(dashboard, 0, 6, "Entries", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    table.cell(dashboard, 1, 6, entryCountText + "/" + str.tostring(pyramidLevels), text_color=color.white, bgcolor=color.new(color.blue, 70), text_size=size.small)
+
+    // Profit in R
+    profitR = posSize > 0 ? (close - initialLongEntryPrice) / longRiskAmount : posSize < 0 ? (initialShortEntryPrice - close) / shortRiskAmount : 0
+    profitRColor = profitR > 0 ? color.green : profitR < 0 ? color.red : color.gray
+    table.cell(dashboard, 0, 7, "Profit (R)", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    table.cell(dashboard, 1, 7, str.tostring(profitR, "#.##") + "R", text_color=color.white, bgcolor=color.new(profitRColor, 70), text_size=size.small)
+
+    // P&L %
+    pnlPct = strategy.openprofit / strategy.equity * 100
+    pnlColor = pnlPct > 0 ? color.green : pnlPct < 0 ? color.red : color.gray
+    table.cell(dashboard, 0, 8, "Open P&L %", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    table.cell(dashboard, 1, 8, str.tostring(pnlPct, "#.##") + "%", text_color=color.white, bgcolor=color.new(pnlColor, 70), text_size=size.small)
+
+    // Breakeven Status
+    beActive = (posSize > 0 and profitR >= breakevenActivation) or (posSize < 0 and profitR >= breakevenActivation)
+    beText = beActive ? "ACTIVE" : "INACTIVE"
+    beColor = beActive ? color.green : color.gray
+    table.cell(dashboard, 0, 9, "Breakeven", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    table.cell(dashboard, 1, 9, beText, text_color=color.white, bgcolor=color.new(beColor, 70), text_size=size.small)
+
+    // Cooling Period
+    coolingText = coolingPeriodOk ? "OK ✓" : str.tostring(barsAfterExit - barsSinceExit) + " bars"
+    coolingColor = coolingPeriodOk ? color.green : color.orange
+    table.cell(dashboard, 0, 10, "Cooling", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    table.cell(dashboard, 1, 10, coolingText, text_color=color.white, bgcolor=color.new(coolingColor, 70), text_size=size.small)
+
+    // Win Rate
+    winRate = strategy.wintrades / math.max(strategy.closedtrades, 1) * 100
+    wrColor = winRate >= 50 ? color.green : color.red
+    table.cell(dashboard, 0, 11, "Win Rate", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    table.cell(dashboard, 1, 11, str.tostring(winRate, "#.#") + "%", text_color=color.white, bgcolor=color.new(wrColor, 70), text_size=size.small)
+
+    // Total Trades
+    table.cell(dashboard, 0, 12, "Trades", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    table.cell(dashboard, 1, 12, str.tostring(strategy.closedtrades), text_color=color.white, bgcolor=color.new(color.blue, 70), text_size=size.small)
+
+    // Net Profit %
+    netProfitPct = (strategy.netprofit / strategy.initial_capital) * 100
+    npColor = netProfitPct > 0 ? color.green : color.red
+    table.cell(dashboard, 0, 13, "Net Profit %", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    table.cell(dashboard, 1, 13, str.tostring(netProfitPct, "#.##") + "%", text_color=color.white, bgcolor=color.new(npColor, 70), text_size=size.small)
 
 // Update previous states
 previousCanEnterLong := canEnterLong
