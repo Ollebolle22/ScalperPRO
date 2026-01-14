@@ -13,6 +13,8 @@ leverage = input.float(1.0, "Leverage", minval=1.0, maxval=125.0, step=0.5, grou
 tradePct = input.float(2.0, "Position per trade (%)", step=0.1, group="Trading")
 pyramidLevels = input.int(60, "Max pyramidnivåer", minval=1, group="Trading")
 useCompoundingWithOpenProfit = input.bool(false, "Compound med Open Profit", group="Trading", tooltip="Inkludera öppen vinst i position sizing (mer aggressivt)")
+useProgressiveScaling = input.bool(true, "Progressiv Pyramid Scaling", group="Trading", tooltip="Minska position size för varje pyramid entry")
+pyramidDecayPct = input.float(5.0, "Pyramid Decay (%)", minval=0.0, maxval=20.0, step=1.0, group="Trading", tooltip="Minska position size med X% för varje pyramid entry")
 
 // Likviderings-skydd
 useLiquidationProtection = input.bool(true, "Aktivera Likviderings-skydd", group="💀 Likviderings-skydd", tooltip="Stäng position om för nära likvidation")
@@ -99,10 +101,12 @@ enterLong = strategy.position_size == 0 and hmaSlopeLong and bullTrend and close
 // Short conditions
 enterShort = strategy.position_size == 0 and hmaSlopeShort and bearTrend and close < ma200_4h and (tradingMode == "Short Only" or tradingMode == "Long & Short") and coolingPeriodOk
 
-// Funktion för att beräkna quantity med compounding och leverage
-f_calcQty(_pct) =>
+// Funktion för att beräkna quantity med compounding, leverage och progressiv scaling
+f_calcQty(_pct, _entryNumber) =>
     baseEquity = useCompoundingWithOpenProfit ? (strategy.equity + strategy.openprofit) : strategy.equity
-    positionValue = baseEquity * (_pct * 0.01) * leverage
+    // Progressiv scaling: minska % för varje entry
+    adjustedPct = useProgressiveScaling ? _pct * math.pow((1 - pyramidDecayPct / 100), _entryNumber - 1) : _pct
+    positionValue = baseEquity * (adjustedPct * 0.01) * leverage
     positionValue / close
 
 // Funktion för att beräkna likvidationspris
@@ -134,9 +138,8 @@ if not coolingPeriodOk and strategy.position_size == 0 and bar_index % 5 == 0
 
 // === FÖRSTA KÖP LONG ===
 if enterLong
-    qtyVal = f_calcQty(tradePct)
+    qtyVal = f_calcQty(tradePct, 1)
     strategy.entry("LONG", strategy.long, qty=qtyVal)
-    label.new(bar_index, low * 0.97, text="Första Long\nPris: " + str.tostring(close, format.mintick) + "\nRSI: " + str.tostring(rsi, format.mintick), style=label.style_label_up, color=color.teal, textcolor=color.white)
     longEntryCount := 1
     initialLongEntryPrice := close
     // FIX: Spara ATR vid entry
@@ -146,11 +149,14 @@ if enterLong
     longCurrentStop := close - (atr * slAtrMult)
     longBreakevenActivated := false
 
+// Label för första long (visas bara om trade bekräftad)
+if enterLong[1] and strategy.position_size > 0 and strategy.position_size[1] == 0
+    label.new(bar_index[1], low[1] * 0.97, text="Första Long\nPris: " + str.tostring(close[1], format.mintick) + "\nRSI: " + str.tostring(rsi[1], "#.#") + "\nQty: " + str.tostring(strategy.position_size, "#.####"), style=label.style_label_up, color=color.teal, textcolor=color.white)
+
 // === FÖRSTA KÖP SHORT ===
 if enterShort
-    qtyVal = f_calcQty(tradePct)
+    qtyVal = f_calcQty(tradePct, 1)
     strategy.entry("SHORT", strategy.short, qty=qtyVal)
-    label.new(bar_index, high * 1.03, text="Första Short\nPris: " + str.tostring(close, format.mintick) + "\nRSI: " + str.tostring(rsi, format.mintick), style=label.style_label_down, color=color.orange, textcolor=color.white)
     shortEntryCount := 1
     initialShortEntryPrice := close
     // FIX: Spara ATR vid entry
@@ -160,6 +166,10 @@ if enterShort
     shortCurrentStop := close + (atr * slAtrMult)
     shortBreakevenActivated := false
 
+// Label för första short (visas bara om trade bekräftad)
+if enterShort[1] and strategy.position_size < 0 and strategy.position_size[1] == 0
+    label.new(bar_index[1], high[1] * 1.03, text="Första Short\nPris: " + str.tostring(close[1], format.mintick) + "\nRSI: " + str.tostring(rsi[1], "#.#") + "\nQty: " + str.tostring(math.abs(strategy.position_size), "#.####"), style=label.style_label_down, color=color.orange, textcolor=color.white)
+
 // === PYRAMIDKÖP LONG ===
 longPyramidThreshold = strategy.position_avg_price - atr * pyramidATRmult
 longMinDrop = strategy.position_avg_price * (1 - minPyramidDropPct / 100)
@@ -168,11 +178,14 @@ barsSinceLastLongPyramid = bar_index - nz(lastLongPyramidBarIndex, 0)
 isLongDipp = strategy.position_size > 0 and close <= longPyramidThreshold and close < close[1] and close <= longMinDrop and longEntryCount < pyramidLevels and close > ma200_4h and longRsiFilter and barsSinceLastLongPyramid >= minBarsBetweenPyramids
 
 if isLongDipp
-    qtyVal = f_calcQty(tradePct)
+    qtyVal = f_calcQty(tradePct, longEntryCount + 1)
     strategy.entry("LONG", strategy.long, qty=qtyVal)
-    label.new(bar_index, low * 0.97, text="Long Pyramid " + str.tostring(longEntryCount + 1) + "\nPris: " + str.tostring(close, format.mintick) + "\nRSI: " + str.tostring(rsi, format.mintick), style=label.style_label_up, color=color.green, textcolor=color.white)
     longEntryCount += 1
     lastLongPyramidBarIndex := bar_index
+
+// Label för pyramid long (visas bara om position ökade från föregående bar)
+if isLongDipp[1] and strategy.position_size > 0 and strategy.position_size > strategy.position_size[1]
+    label.new(bar_index[1], low[1] * 0.97, text="Long Pyramid " + str.tostring(longEntryCount[1]) + "\nPris: " + str.tostring(close[1], format.mintick) + "\nRSI: " + str.tostring(rsi[1], "#.#") + "\nQty: " + str.tostring(strategy.position_size - strategy.position_size[1], "#.####"), style=label.style_label_up, color=color.green, textcolor=color.white)
 
 // === PYRAMIDKÖP SHORT ===
 shortPyramidThreshold = strategy.position_avg_price + atr * pyramidATRmult
@@ -182,11 +195,14 @@ barsSinceLastShortPyramid = bar_index - nz(lastShortPyramidBarIndex, 0)
 isShortRise = strategy.position_size < 0 and close >= shortPyramidThreshold and close > close[1] and close >= shortMinRise and shortEntryCount < pyramidLevels and close < ma200_4h and shortRsiFilter and barsSinceLastShortPyramid >= minBarsBetweenPyramids
 
 if isShortRise
-    qtyVal = f_calcQty(tradePct)
+    qtyVal = f_calcQty(tradePct, shortEntryCount + 1)
     strategy.entry("SHORT", strategy.short, qty=qtyVal)
-    label.new(bar_index, high * 1.03, text="Short Pyramid " + str.tostring(shortEntryCount + 1) + "\nPris: " + str.tostring(close, format.mintick) + "\nRSI: " + str.tostring(rsi, format.mintick), style=label.style_label_down, color=color.red, textcolor=color.white)
     shortEntryCount += 1
     lastShortPyramidBarIndex := bar_index
+
+// Label för pyramid short (visas bara om position ökade från föregående bar)
+if isShortRise[1] and strategy.position_size < 0 and strategy.position_size < strategy.position_size[1]
+    label.new(bar_index[1], high[1] * 1.03, text="Short Pyramid " + str.tostring(shortEntryCount[1]) + "\nPris: " + str.tostring(close[1], format.mintick) + "\nRSI: " + str.tostring(rsi[1], "#.#") + "\nQty: " + str.tostring(math.abs(strategy.position_size - strategy.position_size[1]), "#.####"), style=label.style_label_down, color=color.red, textcolor=color.white)
 
 // === EXIT MANAGEMENT - FIXED VERSION ===
 
