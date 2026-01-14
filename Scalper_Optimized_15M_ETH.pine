@@ -260,8 +260,8 @@ avoidFirstBar = input.bool(true, "✓ Undvik första bar i session", group=grpSe
 grpBot = "🤖 Bot Config"
 bot_id = input.string("b5b6069f87e87df334c11c36", "🤖 Bot ID", group=grpBot)
 exchange_name = input.string("HyperLiquid", "Exchange", options=["HyperLiquid", "Binance", "Bybit", "OKX"], group=grpBot)
-pair_name = input.string("ETH-USDC", "Trading Pair", group=grpBot)
-strategy_name_bot = input.string("ETH_15M", "Strategy Name", group=grpBot)
+pair_name = input.string("SOL-USDC", "Trading Pair", group=grpBot)
+strategy_name_bot = input.string("SOL_15M", "Strategy Name", group=grpBot)
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 🖥️ DISPLAY SETTINGS
@@ -1318,7 +1318,7 @@ currentR = in_position and not na(avg_entry) and not na(initial_sl_dist) ? (is_l
 // ══════════════════════════════════════════════════════════════════════════════
 
 if showInfoPanel
-    var table panel = table.new(position.bottom_center, 35, 3, bgcolor=color.new(#000000, 85), border_width=2, border_color=color.new(#2962FF, 50))
+    var table panel = table.new(position.top_right, 2, 35, bgcolor=color.new(#000000, 85), border_width=2, border_color=color.new(#2962FF, 50))
 
     // Prepare all data
     trendTxt = bullTrend ? "🟢 BULL" : bearTrend ? "🔴 BEAR" : "🟡 NEUTRAL"
@@ -1330,7 +1330,7 @@ if showInfoPanel
     rTxt = in_position ? (currentR >= 0 ? "+" : "") + str.tostring(currentR, "#.##") + "R" : "—"
     rCol = currentR >= 0 ? colBull : colBear
     tp_taken_count = (partial1_taken ? 1 : 0) + (partial2_taken ? 1 : 0) + (partial3_taken ? 1 : 0) + (partial4_taken ? 1 : 0)
-    dca_done = use_dca ? dca_count - 1 : 0
+    dca_done = use_dca and in_position ? math.max(0, dca_count - 1) : 0
     dca_remaining = use_dca ? math.max(0, dca_max_entries - dca_count) : 0
     wrCol = winRate >= 50 ? colBull : winRate >= 40 ? color.yellow : colBear
     pfCol = profitFactor >= 2.0 ? colBull : profitFactor >= 1.5 ? color.yellow : colBear
@@ -1366,7 +1366,7 @@ if showInfoPanel
     col += 1
 
     table.cell(panel, col, 1, "Total Entries", text_color=color.gray, text_size=size.small)
-    table.cell(panel, col, 2, in_position ? str.tostring(dca_count) : "—", text_color=color.white, text_size=size.normal)
+    table.cell(panel, col, 2, in_position ? str.tostring(dca_count + 1) : "—", text_color=color.white, text_size=size.normal)
     col += 1
 
     // Separator
