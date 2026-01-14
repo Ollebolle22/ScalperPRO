@@ -1389,65 +1389,65 @@ if showInfoPanel
     row = 0
 
     // Header
-    table.cell(panel, 0, row, "⚡ HYPE", text_color=color.white, text_size=size.small, bgcolor=color.new(#2962FF, 60))
-    table.cell(panel, 1, row, posTxt, text_color=posCol, text_size=size.small, bgcolor=color.new(#2962FF, 60))
+    table.cell(panel, 0, row, "⚡ HYPE", text_color=color.white, text_size=size.normal, bgcolor=color.new(#2962FF, 60))
+    table.cell(panel, 1, row, posTxt, text_color=posCol, text_size=size.normal, bgcolor=color.new(#2962FF, 60))
     row += 1
 
     // P&L + R
-    table.cell(panel, 0, row, "💰 P&L", text_color=color.gray, text_size=size.tiny)
-    table.cell(panel, 1, row, pnlR, text_color=in_position ? pnlCol : color.gray, text_size=size.tiny)
+    table.cell(panel, 0, row, "💰 P&L", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, pnlR, text_color=in_position ? pnlCol : color.gray, text_size=size.small)
     row += 1
 
     // Entry + count
-    table.cell(panel, 0, row, "🏷️ Entry", text_color=color.gray, text_size=size.tiny)
-    table.cell(panel, 1, row, entryTxt, text_color=color.yellow, text_size=size.tiny)
+    table.cell(panel, 0, row, "🏷️ Entry", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, entryTxt, text_color=color.yellow, text_size=size.small)
     row += 1
 
     // SL
-    table.cell(panel, 0, row, "🛑 SL", text_color=color.gray, text_size=size.tiny)
-    table.cell(panel, 1, row, slTxt, text_color=colSL, text_size=size.tiny)
+    table.cell(panel, 0, row, "🛑 SL", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, slTxt, text_color=colSL, text_size=size.small)
     row += 1
 
     // Liq
-    table.cell(panel, 0, row, "⚠️ Liq", text_color=color.gray, text_size=size.tiny)
-    table.cell(panel, 1, row, in_position ? str.tostring(liq_price, format.mintick) : "—", text_color=colLiq, text_size=size.tiny)
+    table.cell(panel, 0, row, "⚠️ Liq", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, in_position ? str.tostring(liq_price, format.mintick) : "—", text_color=colLiq, text_size=size.small)
     row += 1
 
     // TP
-    table.cell(panel, 0, row, "🎯 TP", text_color=color.gray, text_size=size.tiny)
-    table.cell(panel, 1, row, tpTxt, text_color=colPartial, text_size=size.tiny)
+    table.cell(panel, 0, row, "🎯 TP", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, tpTxt, text_color=colPartial, text_size=size.small)
     row += 1
 
     // Trail
     if useTrailingStop and in_position
         trailTxt = trail_activated ? "🔥 ON" : "OFF"
-        table.cell(panel, 0, row, "📐 Trail", text_color=color.gray, text_size=size.tiny)
-        table.cell(panel, 1, row, trailTxt, text_color=trail_activated ? color.orange : color.gray, text_size=size.tiny)
+        table.cell(panel, 0, row, "📐 Trail", text_color=color.gray, text_size=size.small)
+        table.cell(panel, 1, row, trailTxt, text_color=trail_activated ? color.orange : color.gray, text_size=size.small)
         row += 1
 
     // DCA
-    table.cell(panel, 0, row, "🔄 DCA", text_color=color.gray, text_size=size.tiny)
-    table.cell(panel, 1, row, dcaTxt, text_color=colDCA, text_size=size.tiny)
+    table.cell(panel, 0, row, "🔄 DCA", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, dcaTxt, text_color=colDCA, text_size=size.small)
     row += 1
 
     // Trend
-    table.cell(panel, 0, row, "📈 Trend", text_color=color.gray, text_size=size.tiny)
-    table.cell(panel, 1, row, trendTxt, text_color=trendCol, text_size=size.tiny)
+    table.cell(panel, 0, row, "📈 Trend", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, trendTxt, text_color=trendCol, text_size=size.small)
     row += 1
 
     // ADX
-    table.cell(panel, 0, row, "⚡ ADX", text_color=color.gray, text_size=size.tiny)
-    table.cell(panel, 1, row, str.tostring(adxValue, "#.#") + " " + adxStatus, text_color=adxCol, text_size=size.tiny)
+    table.cell(panel, 0, row, "⚡ ADX", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, str.tostring(adxValue, "#.#") + " " + adxStatus, text_color=adxCol, text_size=size.small)
     row += 1
 
     // MACD
-    table.cell(panel, 0, row, "📊 MACD", text_color=color.gray, text_size=size.tiny)
-    table.cell(panel, 1, row, macdTxt, text_color=color.white, text_size=size.tiny)
+    table.cell(panel, 0, row, "📊 MACD", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, macdTxt, text_color=color.white, text_size=size.small)
     row += 1
 
     // Volume
-    table.cell(panel, 0, row, "🌊 Vol", text_color=color.gray, text_size=size.tiny)
-    table.cell(panel, 1, row, volStatus + " " + str.tostring(volRatio, "#.#"), text_color=volCol, text_size=size.tiny)
+    table.cell(panel, 0, row, "🌊 Vol", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, volStatus + " " + str.tostring(volRatio, "#.#"), text_color=volCol, text_size=size.small)
     row += 1
 
     // Dynamic multipliers (if active)
@@ -1457,8 +1457,8 @@ if showInfoPanel
             dynTxt := "SL:" + str.tostring(dynamicSLMult, "#.#")
         if useDynamicDCA
             dynTxt := dynTxt + (dynTxt != "" ? " " : "") + "DCA:" + str.tostring(dynamicDCAMult, "#.#")
-        table.cell(panel, 0, row, "🔧 ATR×", text_color=color.gray, text_size=size.tiny)
-        table.cell(panel, 1, row, dynTxt, text_color=color.aqua, text_size=size.tiny)
+        table.cell(panel, 0, row, "🔧 ATR×", text_color=color.gray, text_size=size.small)
+        table.cell(panel, 1, row, dynTxt, text_color=color.aqua, text_size=size.small)
         row += 1
 
     // R values (if dynamic TP active)
@@ -1470,23 +1470,23 @@ if showInfoPanel
             r_values += "," + str.tostring(dynamicPartial3_R, "#.#")
         if numPartialLevels >= 4
             r_values += "," + str.tostring(dynamicPartial4_R, "#.#")
-        table.cell(panel, 0, row, "🎯 R's", text_color=color.gray, text_size=size.tiny)
-        table.cell(panel, 1, row, r_values, text_color=colPartial, text_size=size.tiny)
+        table.cell(panel, 0, row, "🎯 R's", text_color=color.gray, text_size=size.small)
+        table.cell(panel, 1, row, r_values, text_color=colPartial, text_size=size.small)
         row += 1
 
     // Stats: Trades + Win Rate combined
-    table.cell(panel, 0, row, "📈 Stats", text_color=color.gray, text_size=size.tiny)
-    table.cell(panel, 1, row, str.tostring(totalTrades) + "T " + str.tostring(winRate, "#") + "%", text_color=wrCol, text_size=size.tiny)
+    table.cell(panel, 0, row, "📈 Stats", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, str.tostring(totalTrades) + "T " + str.tostring(winRate, "#") + "%", text_color=wrCol, text_size=size.small)
     row += 1
 
     // PF / RR combined
-    table.cell(panel, 0, row, "💎 PF/RR", text_color=color.gray, text_size=size.tiny)
-    table.cell(panel, 1, row, str.tostring(profitFactor, "#.#") + " / " + str.tostring(avgRR, "#.#"), text_color=pfCol, text_size=size.tiny)
+    table.cell(panel, 0, row, "💎 PF/RR", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, str.tostring(profitFactor, "#.#") + " / " + str.tostring(avgRR, "#.#"), text_color=pfCol, text_size=size.small)
     row += 1
 
     // Net P&L
-    table.cell(panel, 0, row, "💵 Net", text_color=color.gray, text_size=size.tiny)
-    table.cell(panel, 1, row, "$" + str.tostring(strategy.netprofit, "#"), text_color=netCol, text_size=size.tiny)
+    table.cell(panel, 0, row, "💵 Net", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, "$" + str.tostring(strategy.netprofit, "#"), text_color=netCol, text_size=size.small)
     row += 1
 
 // ══════════════════════════════════════════════════════════════════════════════
