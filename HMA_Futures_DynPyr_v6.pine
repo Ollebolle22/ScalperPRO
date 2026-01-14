@@ -68,6 +68,7 @@ var float initialShortEntryPrice = 0.0
 var float longRiskAmount = 0.0
 var float shortRiskAmount = 0.0
 var int lastExitBar = na
+var bool hadPosition = false  // Track om vi hade position föregående bar
 
 // === ENTRY CONDITIONS ===
 // Cooling period check (tillåt första entry genom att sätta na som default)
@@ -92,6 +93,11 @@ if close < ma200_4h and strategy.position_size == 0 and bar_index % 10 == 0 and 
 
 if close > ma200_4h and strategy.position_size == 0 and bar_index % 10 == 0 and (tradingMode == "Short Only" or tradingMode == "Long & Short")
     label.new(bar_index, low * 0.97, text="🚫 Inga short – över MA200 (4h)", style=label.style_label_up, color=color.red, textcolor=color.white, size=size.normal)
+
+// Visa cooling period status
+if not coolingPeriodOk and strategy.position_size == 0 and bar_index % 5 == 0
+    barsLeft = math.max(0, barsAfterExit - barsSinceExit)
+    label.new(bar_index, high * 1.01, text="⏰ Cooling: " + str.tostring(barsLeft) + " bars kvar", style=label.style_label_down, color=color.orange, textcolor=color.white, size=size.small)
 
 // === FÖRSTA KÖP LONG ===
 if enterLong
@@ -183,10 +189,11 @@ if strategy.position_size < 0
         strategy.exit("SHORT_EXIT", from_entry="SHORT", stop=shortStopPrice)
 
 // === RESET COUNTERS ===
-wasInPosition = strategy.position_size[1] != 0
-nowNoPosition = strategy.position_size == 0
+// Detektera när position stängdes (hade position förra uppdateringen, har inte nu)
+currentlyHasPosition = strategy.position_size != 0
+justExited = hadPosition and not currentlyHasPosition
 
-if wasInPosition and nowNoPosition
+if justExited
     lastExitBar := bar_index
     longEntryCount := 0
     shortEntryCount := 0
@@ -197,6 +204,9 @@ if wasInPosition and nowNoPosition
     longRiskAmount := 0.0
     shortRiskAmount := 0.0
 
+// Uppdatera tracking-variabel för nästa iteration
+hadPosition := currentlyHasPosition
+
 // === PLOTTNING ===
 plot(hma, title="HMA", color=hmaColor, linewidth=2)
 plot(strategy.position_size != 0 ? strategy.position_avg_price : na, title="Inköpspris", color=avgPriceColor, linewidth=2)
@@ -206,43 +216,69 @@ plot(ma200_4h, title="MA200 (4h)", color=ma200Color, linewidth=1, style=plot.sty
 var float longSLPlot = na
 var float longTPPlot = na
 var float longBEPlot = na
+var bool longBEActive = false
 
 if strategy.position_size > 0
-    longSLPlot := initialLongEntryPrice - (atr * slAtrMult)
     longTPPlot := strategy.position_avg_price + atr * atrMultTP
-    // Endast visa breakeven om den är aktiverad OCH profiten är tillräcklig
+    // Beräkna profit i R
     safelongProfitInR = longRiskAmount > 0 ? (close - initialLongEntryPrice) / longRiskAmount : 0
-    longBEPlot := (useBreakeven and safelongProfitInR >= breakevenActivation) ? initialLongEntryPrice + (atr * breakevenBuffer) : na
+    longBEIsActive = useBreakeven and safelongProfitInR >= breakevenActivation
+
+    // Sätt SL plot baserat på om breakeven är aktivt
+    if longBEIsActive
+        longSLPlot := initialLongEntryPrice + (atr * breakevenBuffer)
+        longBEPlot := initialLongEntryPrice  // Visa initial entry price som referens
+    else
+        longSLPlot := initialLongEntryPrice - (atr * slAtrMult)
+        longBEPlot := na
+
+    longBEActive := longBEIsActive
 else
     longSLPlot := na
     longTPPlot := na
     longBEPlot := na
+    longBEActive := false
 
 plot(strategy.position_size > 0 ? longPyramidThreshold : na, title="Long Pyramidnivå", color=longPyramidColor, style=plot.style_stepline)
 plot(longTPPlot, title="Long TP", color=longTPColor, style=plot.style_stepline, linewidth=2)
 plot(longSLPlot, title="Long SL", color=longSLColor, style=plot.style_stepline, linewidth=2)
-plot(longBEPlot, title="Long Breakeven", color=longBEColor, style=plot.style_cross, linewidth=2)
+plot(longBEPlot, title="Long Breakeven Reference", color=longBEColor, style=plot.style_linebr, linewidth=1)
+// Plotta en tydligare linje för när breakeven är aktivt
+plotshape(longBEActive and strategy.position_size > 0, title="Long BE Active", location=location.bottom, color=color.blue, style=shape.labelup, text="BE", size=size.tiny)
 
 // Short plots (deklarera variabler före plotting)
 var float shortSLPlot = na
 var float shortTPPlot = na
 var float shortBEPlot = na
+var bool shortBEActive = false
 
 if strategy.position_size < 0
-    shortSLPlot := initialShortEntryPrice + (atr * slAtrMult)
     shortTPPlot := strategy.position_avg_price - atr * atrMultTP
-    // Endast visa breakeven om den är aktiverad OCH profiten är tillräcklig
+    // Beräkna profit i R
     safeshortProfitInR = shortRiskAmount > 0 ? (initialShortEntryPrice - close) / shortRiskAmount : 0
-    shortBEPlot := (useBreakeven and safeshortProfitInR >= breakevenActivation) ? initialShortEntryPrice - (atr * breakevenBuffer) : na
+    shortBEIsActive = useBreakeven and safeshortProfitInR >= breakevenActivation
+
+    // Sätt SL plot baserat på om breakeven är aktivt
+    if shortBEIsActive
+        shortSLPlot := initialShortEntryPrice - (atr * breakevenBuffer)
+        shortBEPlot := initialShortEntryPrice  // Visa initial entry price som referens
+    else
+        shortSLPlot := initialShortEntryPrice + (atr * slAtrMult)
+        shortBEPlot := na
+
+    shortBEActive := shortBEIsActive
 else
     shortSLPlot := na
     shortTPPlot := na
     shortBEPlot := na
+    shortBEActive := false
 
 plot(strategy.position_size < 0 ? shortPyramidThreshold : na, title="Short Pyramidnivå", color=shortPyramidColor, style=plot.style_stepline)
 plot(shortTPPlot, title="Short TP", color=shortTPColor, style=plot.style_stepline, linewidth=2)
 plot(shortSLPlot, title="Short SL", color=shortSLColor, style=plot.style_stepline, linewidth=2)
-plot(shortBEPlot, title="Short Breakeven", color=shortBEColor, style=plot.style_cross, linewidth=2)
+plot(shortBEPlot, title="Short Breakeven Reference", color=shortBEColor, style=plot.style_linebr, linewidth=1)
+// Plotta en tydligare linje för när breakeven är aktivt
+plotshape(shortBEActive and strategy.position_size < 0, title="Short BE Active", location=location.top, color=color.aqua, style=shape.labeldown, text="BE", size=size.tiny)
 
 // Background colors
 bgcolor(enterLong ? color.new(color.green, 85) : enterShort ? color.new(color.red, 85) : na, title="Entry Status")
