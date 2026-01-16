@@ -118,6 +118,12 @@ LongAndShort = LnS_Longs == true and LnS_Shorts == true ? 1 : LnS_Longs == true 
 var InfoPanelGrp = 'Info Panel Settings'
 showInfoPanel = input.bool(true, '📋 Show Info Panel', group = InfoPanelGrp, tooltip = 'Display info panel with strategy stats and position info')
 
+/////////////////////////////////////
+//Backtest Warmup Period
+
+var BacktestGrp = 'Backtest Settings'
+warmupBars = input.int(100, 'Warmup Period (bars)', minval = 0, maxval = 500, group = BacktestGrp, tooltip = 'Number of bars to skip before allowing trades. This ensures indicators have enough historical data when using deep backtest with specific date ranges. Recommended: 100-200 bars.')
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //Credit provoidided to original creators, however most sections have been Modified by SignalLynx
 // Note: MK5 removed - Removed Hull MA to reduce memory consumption
@@ -2990,7 +2996,10 @@ DCACommit = long_DCA == true and DCATracker == 1 ? 1 : short_DCA == true and DCA
 
 //Uncomment if an strategy - comment if a indicator
 
-if LongAndShort == 1
+// Check if warmup period has passed
+allowTrades = bar_index >= warmupBars
+
+if LongAndShort == 1 and allowTrades
     if Fin == 2
         strategy.entry('Long', strategy.long, comment = 'Long')
     if DCACommit == 1
@@ -3007,7 +3016,7 @@ if LongAndShort == 1
         strategy.close('LongDCA')
 
 
-if LongAndShort == 1
+if LongAndShort == 1 and allowTrades
     if Fin == -2
         strategy.entry('Short', strategy.short, comment = 'Short')
     if DCACommit == -1
@@ -3023,7 +3032,7 @@ if LongAndShort == 1
     if CSX == -1 or shortCloseX
         strategy.close('ShortDCA')
 
-if LongAndShort == 2
+if LongAndShort == 2 and allowTrades
     if Fin == 2
         strategy.entry('Long', strategy.long, comment = 'Long')
     if DCACommit == 1
@@ -3041,7 +3050,7 @@ if LongAndShort == 2
 
 
 
-if LongAndShort == 3
+if LongAndShort == 3 and allowTrades
     if Fin == -2
         strategy.entry('Short', strategy.short, comment = 'Short')
     if DCACommit == -1
@@ -3125,8 +3134,8 @@ if showInfoPanel
     row += 1
 
     // Separator
-    table.cell(panel, 0, row, "━━━━━━━━━━━━━━━━━━━", text_color=color.gray, text_size=size.small)
-    table.cell(panel, 1, row, "━━━━━━━━━━━━━━━━━━━", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 0, row, "━━━━━━━━━━", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, "━━━━━━━━━━", text_color=color.gray, text_size=size.small)
     row += 1
 
     // === TAKE PROFITS ===
@@ -3165,8 +3174,8 @@ if showInfoPanel
     row += 1
 
     // Separator
-    table.cell(panel, 0, row, "━━━━━━━━━━━━━━━━━━━", text_color=color.gray, text_size=size.small)
-    table.cell(panel, 1, row, "━━━━━━━━━━━━━━━━━━━", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 0, row, "━━━━━━━━━━", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, "━━━━━━━━━━", text_color=color.gray, text_size=size.small)
     row += 1
 
     // === PERFORMANCE ===
