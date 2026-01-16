@@ -12,19 +12,19 @@
 // In addition, you will need to comment out the strategy buys/sells at the 
 // bottom of this file, and uncomment the alert plots.
 
-//indicator("Gyspy Bot Trade Engine - V1.2B - (Gypsy Bot) Alerts 12-7-25", shorttitle="Gyspy Bot Trade Engine - V1.2B - Alerts", overlay=false)
+//indicator("Gyspy Bot Trade Engine - V1.3 - (Gypsy Bot) Alerts 01-16-26", shorttitle="Gyspy Bot Trade Engine - V1.3 - Alerts", overlay=false)
 
-// The line below is the "Strategy" declaration. This allows for backtesting (buy/sell simulation).
+// The line below is the "Strategy" declaration. This allows for backtesting using TradingView's native backtesting engine.
 // overlay=true means the buy/sell arrows appear ON the price chart, not in a separate pane below it.
-// initial_capital set to 1000 USD for testing purposes.
-strategy('Gyspy Bot Trade Engine - V1.2B - Strategy 12-7-25', shorttitle = 'Gyspy Bot Trade Engine - V1.2B - Strat', overlay = true, initial_capital = 1000, commission_type = strategy.commission.percent, commission_value = 0.26, currency = currency.USD, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, pyramiding = 0, slippage = 5)
+// Backtest settings (initial capital, commission, slippage, etc.) can be configured in the strategy settings panel in TradingView.
+strategy('Gyspy Bot Trade Engine - V1.3 - Strategy 01-16-26', shorttitle = 'Gyspy Bot Trade Engine - V1.3 - Strat', overlay = true, initial_capital = 1000, commission_type = strategy.commission.percent, commission_value = 0.26, currency = currency.USD, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, pyramiding = 0, slippage = 5)
 
 ////////////////////////////////////////////////////////////////  
 //* Gypsy Bot Trade Engine - Code Information                *// 
 ////////////////////////////////////////////////////////////////    
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-// Gypsy Bot Trade Engine (MK6 V1.2B) – Executive Summary
+// Gypsy Bot Trade Engine (MK6 V1.3) – Executive Summary
 //
 // Gypsy Bot is a highly sophisticated, modular "Trade Engine" designed for the TradingView 
 // Pine Script v6 environment. Unlike traditional strategies that rely on a single indicator 
@@ -71,10 +71,11 @@ strategy('Gyspy Bot Trade Engine - V1.2B - Strategy 12-7-25', shorttitle = 'Gysp
 
 //Revision Control and Code Information
 
-//This is a trade engine (MK6, V1.2B - Gypsy Bot) - Code Release date: 12-7-25
+//This is a trade engine (MK6, V1.3 - Gypsy Bot) - Code Release date: 01-16-26
 //This code is in perpetual development - Gyspy Bot first build was in November 2019 - It has come a long way
 //Variable names may get a bit odd - Evidence of when I got a bit loopy during coding (Captain DeadPool for instance)
 //
+//MK6 V1.3 - Removed old backtest settings in favor of TradingView's native backtesting, added info panel
 //MK6 V1.2B - Upgrade to pinescript v6
 //MK6 V1.2A Fixes issues with QUANDL data for hashrate
 //MK6 V1.2 Changes Houbi tickers to Kraken - Houbi tickers were banned by TV (morons); Also integrates additional adaptations for further flexibility
@@ -101,30 +102,6 @@ strategy('Gyspy Bot Trade Engine - V1.2B - Strategy 12-7-25', shorttitle = 'Gysp
 //Note: Code peices have been picked up along the way, and likely have forgotten to mention contributors (Appologies in advance)
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-////////////////////////////////////////////////////////////////
-//* Backtest Setting                                         *//
-////////////////////////////////////////////////////////////////
-
-// Grouping inputs makes the settings menu cleaner in TradingView.
-var BackTestMod = 'Back Test Inputs'
-
-// Users can define the specific window of time to run the backtest.
-testStartYear = input(2019, '- Start year', group = BackTestMod)
-testStartMonth = input(01, '- Start month', group = BackTestMod)
-testStartDay = input(01, '- Start day', group = BackTestMod)
-// Timestamp converts human readable dates into computer time (milliseconds since 1970).
-testPeriodStart = timestamp(testStartYear, testStartMonth, testStartDay, 0, 0)
-
-testStopYear = input(99999, '- Stop year', group = BackTestMod)
-testStopMonth = input(12, '- Stop month', group = BackTestMod)
-testStopDay = input(30, '-Stop day', group = BackTestMod)
-testPeriodStop = timestamp(testStopYear, testStopMonth, testStopDay, 0, 0)
-
-// This function checks if the current bar on the chart is within the user-defined date range.
-testPeriod() =>
-    time >= testPeriodStart and time <= testPeriodStop ? true : false
-
-
 /////////////////////////////////////
 //Longs and shorts
 
@@ -134,6 +111,12 @@ LnS_Shorts = input(true, title = 'Shorts', group = LnS)
 
 // Logic to determine direction: 1=Both, 2=Longs Only, 3=Shorts Only
 LongAndShort = LnS_Longs == true and LnS_Shorts == true ? 1 : LnS_Longs == true and LnS_Shorts == false ? 2 : LnS_Longs == false and LnS_Shorts == true ? 3 : 1
+
+/////////////////////////////////////
+//Info Panel Display
+
+var InfoPanelGrp = 'Info Panel Settings'
+showInfoPanel = input.bool(true, '📋 Show Info Panel', group = InfoPanelGrp, tooltip = 'Display info panel with strategy stats and position info')
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //Credit provoidided to original creators, however most sections have been Modified by SignalLynx
@@ -3007,7 +2990,7 @@ DCACommit = long_DCA == true and DCATracker == 1 ? 1 : short_DCA == true and DCA
 
 //Uncomment if an strategy - comment if a indicator
 
-if testPeriod() and LongAndShort == 1
+if LongAndShort == 1
     if Fin == 2
         strategy.entry('Long', strategy.long, comment = 'Long')
     if DCACommit == 1
@@ -3024,7 +3007,7 @@ if testPeriod() and LongAndShort == 1
         strategy.close('LongDCA')
 
 
-if testPeriod() and LongAndShort == 1
+if LongAndShort == 1
     if Fin == -2
         strategy.entry('Short', strategy.short, comment = 'Short')
     if DCACommit == -1
@@ -3040,7 +3023,7 @@ if testPeriod() and LongAndShort == 1
     if CSX == -1 or shortCloseX
         strategy.close('ShortDCA')
 
-if testPeriod() and LongAndShort == 2
+if LongAndShort == 2
     if Fin == 2
         strategy.entry('Long', strategy.long, comment = 'Long')
     if DCACommit == 1
@@ -3058,7 +3041,7 @@ if testPeriod() and LongAndShort == 2
 
 
 
-if testPeriod() and LongAndShort == 3
+if LongAndShort == 3
     if Fin == -2
         strategy.entry('Short', strategy.short, comment = 'Short')
     if DCACommit == -1
@@ -3074,6 +3057,137 @@ if testPeriod() and LongAndShort == 3
     if CSX == -1 or shortCloseX or Fin == 2
         strategy.close('ShortDCA')
 
+////////////////////////////////////////////////////////////////
+//* Info Panel                                               *//
+////////////////////////////////////////////////////////////////
+
+// Calculate strategy statistics
+totalTrades = strategy.closedtrades
+winRate = totalTrades > 0 ? strategy.wintrades / totalTrades * 100 : 0.0
+profitFactor = strategy.grossloss != 0 ? math.abs(strategy.grossprofit / strategy.grossloss) : 0.0
+avgWin = strategy.wintrades > 0 ? strategy.grossprofit / strategy.wintrades : 0.0
+avgLoss = strategy.losstrades > 0 ? math.abs(strategy.grossloss / strategy.losstrades) : 0.0
+avgRR = avgLoss > 0 ? avgWin / avgLoss : 0.0
+
+// Position tracking
+in_position = strategy.position_size != 0
+is_long = strategy.position_size > 0
+is_short = strategy.position_size < 0
+
+// Calculate current P&L if in position
+currentPnL = in_position and not na(strategy.position_avg_price) ? (is_long ? (close - strategy.position_avg_price) / strategy.position_avg_price * 100 : (strategy.position_avg_price - close) / strategy.position_avg_price * 100) : 0.0
+posValue = in_position ? strategy.position_avg_price * math.abs(strategy.position_size) : 0.0
+
+// Display Info Panel
+if showInfoPanel
+    var table panel = table.new(position.top_right, 2, 25, bgcolor=color.new(#0D0D0D, 85), border_width=2, border_color=color.new(#FFD700, 50))
+
+    // Colors
+    colBull = color.new(#00FF00, 0)
+    colBear = color.new(#FF0000, 0)
+    colNeutral = color.new(#FFAA00, 0)
+
+    // Prepare display texts
+    posTxt = is_long ? "🟢 LONG" : is_short ? "🔴 SHORT" : "⚪ FLAT"
+    posCol = is_long ? colBull : is_short ? colBear : color.gray
+    pnlTxt = in_position ? (currentPnL >= 0 ? "+" : "") + str.tostring(currentPnL, "#.##") + "%" : "—"
+    pnlCol = currentPnL >= 0 ? colBull : colBear
+    wrCol = winRate >= 50 ? colBull : winRate >= 40 ? colNeutral : colBear
+    pfCol = profitFactor >= 2.0 ? colBull : profitFactor >= 1.5 ? colNeutral : colBear
+    rrCol = avgRR >= 2.0 ? colBull : avgRR >= 1.5 ? colNeutral : colBear
+    netCol = strategy.netprofit >= 0 ? colBull : colBear
+
+    dcaTxt = isDCA ? "✓ ON" : "✗ OFF"
+    dcaCol = isDCA ? colBull : color.gray
+
+    row = 0
+
+    // Header
+    table.cell(panel, 0, row, "⚡ GYPSY BOT v1.3", text_color=color.new(#FFD700, 0), text_size=size.normal, bgcolor=color.new(#1A1A1A, 50))
+    table.cell(panel, 1, row, "", text_color=color.white, text_size=size.normal, bgcolor=color.new(#1A1A1A, 50))
+    row += 1
+
+    // === POSITION INFO ===
+    table.cell(panel, 0, row, "Status", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, posTxt, text_color=posCol, text_size=size.normal)
+    row += 1
+
+    table.cell(panel, 0, row, "P&L %", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, pnlTxt, text_color=in_position ? pnlCol : color.gray, text_size=size.normal)
+    row += 1
+
+    table.cell(panel, 0, row, "Avg Price", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, in_position ? str.tostring(strategy.position_avg_price, format.mintick) : "—", text_color=colNeutral, text_size=size.normal)
+    row += 1
+
+    table.cell(panel, 0, row, "Position Value", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, in_position ? "$" + str.tostring(posValue, "#") : "—", text_color=color.white, text_size=size.normal)
+    row += 1
+
+    // Separator
+    table.cell(panel, 0, row, "━━━━━━━━━━━━━━━━━━━", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, "━━━━━━━━━━━━━━━━━━━", text_color=color.gray, text_size=size.small)
+    row += 1
+
+    // === TAKE PROFITS ===
+    table.cell(panel, 0, row, "TP1", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, is_long and not na(longSTP1) ? str.tostring(longSTP1, format.mintick) : is_short and not na(shortSTP1) ? str.tostring(shortSTP1, format.mintick) : "—", text_color=colBull, text_size=size.small)
+    row += 1
+
+    table.cell(panel, 0, row, "TP2", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, is_long and not na(longSTP2) ? str.tostring(longSTP2, format.mintick) : is_short and not na(shortSTP2) ? str.tostring(shortSTP2, format.mintick) : "—", text_color=colBull, text_size=size.small)
+    row += 1
+
+    table.cell(panel, 0, row, "TP3", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, is_long and not na(longSTP3) ? str.tostring(longSTP3, format.mintick) : is_short and not na(shortSTP3) ? str.tostring(shortSTP3, format.mintick) : "—", text_color=colBull, text_size=size.small)
+    row += 1
+
+    // Separator
+    table.cell(panel, 0, row, "│", text_color=color.gray, text_size=size.normal)
+    table.cell(panel, 1, row, "│", text_color=color.gray, text_size=size.normal)
+    row += 1
+
+    // === DCA INFO ===
+    table.cell(panel, 0, row, "DCA", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, dcaTxt, text_color=dcaCol, text_size=size.normal)
+    row += 1
+
+    // Separator
+    table.cell(panel, 0, row, "│", text_color=color.gray, text_size=size.normal)
+    table.cell(panel, 1, row, "│", text_color=color.gray, text_size=size.normal)
+    row += 1
+
+    // === MARKET CONDITIONS ===
+    trendTxt = in_longCondition ? "🟢 BULL" : in_shortCondition ? "🔴 BEAR" : "🟡 NEUTRAL"
+    trendCol = in_longCondition ? colBull : in_shortCondition ? colBear : colNeutral
+    table.cell(panel, 0, row, "Trend", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, trendTxt, text_color=trendCol, text_size=size.normal)
+    row += 1
+
+    // Separator
+    table.cell(panel, 0, row, "━━━━━━━━━━━━━━━━━━━", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, "━━━━━━━━━━━━━━━━━━━", text_color=color.gray, text_size=size.small)
+    row += 1
+
+    // === PERFORMANCE ===
+    table.cell(panel, 0, row, "Total Trades", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, str.tostring(totalTrades), text_color=color.white, text_size=size.normal)
+    row += 1
+
+    table.cell(panel, 0, row, "Win Rate", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, str.tostring(winRate, "#.#") + "%", text_color=wrCol, text_size=size.normal)
+    row += 1
+
+    table.cell(panel, 0, row, "Profit Factor", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, str.tostring(profitFactor, "#.##"), text_color=pfCol, text_size=size.normal)
+    row += 1
+
+    table.cell(panel, 0, row, "Avg R:R", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, str.tostring(avgRR, "#.##"), text_color=rrCol, text_size=size.normal)
+    row += 1
+
+    table.cell(panel, 0, row, "Net P&L", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, "$" + str.tostring(strategy.netprofit, "#"), text_color=netCol, text_size=size.normal)
 
 ////////////////////////////////////////////////////////////////
 //* Alerts Buys and Sells                                    *//
