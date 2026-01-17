@@ -2996,8 +2996,9 @@ DCACommit = long_DCA == true and DCATracker == 1 ? 1 : short_DCA == true and DCA
 
 //Uncomment if an strategy - comment if a indicator
 
-// Check if warmup period has passed
-allowTrades = bar_index >= warmupBars
+// Check if warmup period has passed AND we have valid indicator data
+// This ensures all request.security() calls and long-period indicators have loaded properly
+allowTrades = bar_index >= warmupBars and not na(close_HTF) and not na(MCHRHR_long) and not na(typeSPI)
 
 if LongAndShort == 1 and allowTrades
     if Fin == 2
