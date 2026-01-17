@@ -122,7 +122,7 @@ showInfoPanel = input.bool(true, '📋 Show Info Panel', group = InfoPanelGrp, t
 //Backtest Warmup Period
 
 var BacktestGrp = 'Backtest Settings'
-warmupBars = input.int(100, 'Warmup Period (bars)', minval = 0, maxval = 500, group = BacktestGrp, tooltip = 'Number of bars to skip before allowing trades. This ensures indicators have enough historical data when using deep backtest with specific date ranges. Recommended: 100-200 bars.')
+warmupBars = input.int(200, 'Warmup Period (bars)', minval = 0, maxval = 500, group = BacktestGrp, tooltip = 'Number of bars to skip before allowing trades. This ensures indicators have enough historical data when using deep backtest with specific date ranges. Recommended: 200-300 bars for best accuracy.')
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //Credit provoidided to original creators, however most sections have been Modified by SignalLynx
@@ -2996,8 +2996,9 @@ DCACommit = long_DCA == true and DCATracker == 1 ? 1 : short_DCA == true and DCA
 
 //Uncomment if an strategy - comment if a indicator
 
-// Check if warmup period has passed
-allowTrades = bar_index >= warmupBars
+// Check if warmup period has passed AND we have valid indicator data
+// This ensures all request.security() calls and long-period indicators have loaded properly
+allowTrades = bar_index >= warmupBars and not na(close_HTF) and not na(MCHRHR_long) and not na(typeSPI)
 
 if LongAndShort == 1 and allowTrades
     if Fin == 2
