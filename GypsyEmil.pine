@@ -122,7 +122,7 @@ showInfoPanel = input.bool(true, '📋 Show Info Panel', group = InfoPanelGrp, t
 //Backtest Warmup Period
 
 var BacktestGrp = 'Backtest Settings'
-warmupBars = input.int(100, 'Warmup Period (bars)', minval = 0, maxval = 500, group = BacktestGrp, tooltip = 'Number of bars to skip before allowing trades. This ensures indicators have enough historical data when using deep backtest with specific date ranges. Recommended: 100-200 bars.')
+warmupBars = input.int(200, 'Warmup Period (bars)', minval = 0, maxval = 500, group = BacktestGrp, tooltip = 'Number of bars to skip before allowing trades. This ensures indicators have enough historical data when using deep backtest with specific date ranges. Recommended: 200-300 bars for best accuracy.')
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //Credit provoidided to original creators, however most sections have been Modified by SignalLynx
