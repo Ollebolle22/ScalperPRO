@@ -2,7 +2,7 @@
 // © Optimized Momentum Scalper - 15M Timeframe Specialist
 
 //@version=6
-strategy("⚡ Momentum Scalper PRO v13.0 [15M Optimized]",
+strategy("⚡ Momentum Scalper PRO v13.2 [15M SOL]",
      overlay=true,
      pyramiding=5,
      calc_on_every_tick=false,
@@ -592,92 +592,6 @@ get_bot_code(action) =>
     action + "_" + exchange_name + "_" + pair_name + "_" + strategy_name_bot + "_" + bot_id
 
 // ══════════════════════════════════════════════════════════════════════════════
-// 📋 JSON GENERATOR FUNCTIONS FOR WUNDERTRADING
-// ══════════════════════════════════════════════════════════════════════════════
-
-// Build entry JSON with TP levels and SL (WunderTrading format)
-build_entry_json(is_long_entry, qty, sl_price, tp1_price, tp2_price, tp3_price, tp4_price) =>
-    code = get_bot_code(is_long_entry ? "ENTER-LONG" : "ENTER-SHORT")
-
-    // Start building JSON
-    json = '{"code":"' + code + '",'
-    json := json + '"orderType":"market",'
-    json := json + '"amountPerTrade":' + str.tostring(qty, '#.########') + ','
-    json := json + '"amountPerTradeType":"contracts",'
-    json := json + '"leverage":' + str.tostring(leverage, '#.#') + ','
-
-    // Build takeProfits array - NOTE: portfolio must be in DECIMAL form (25% = 0.25)
-    json := json + '"takeProfits":['
-
-    tp_count = 0
-
-    if partial1_enabled and not na(tp1_price)
-        if tp_count > 0
-            json := json + ','
-        // Convert percentage to decimal: 25% -> 0.25
-        portfolio_decimal = partial1_pct / 100
-        json := json + '{"price":' + str.tostring(tp1_price, '#.########') + ',"portfolio":' + str.tostring(portfolio_decimal, '#.##') + '}'
-        tp_count := tp_count + 1
-
-    if partial2_enabled and not na(tp2_price)
-        if tp_count > 0
-            json := json + ','
-        portfolio_decimal = partial2_pct / 100
-        json := json + '{"price":' + str.tostring(tp2_price, '#.########') + ',"portfolio":' + str.tostring(portfolio_decimal, '#.##') + '}'
-        tp_count := tp_count + 1
-
-    if partial3_enabled and not na(tp3_price)
-        if tp_count > 0
-            json := json + ','
-        portfolio_decimal = partial3_pct / 100
-        json := json + '{"price":' + str.tostring(tp3_price, '#.########') + ',"portfolio":' + str.tostring(portfolio_decimal, '#.##') + '}'
-        tp_count := tp_count + 1
-
-    if partial4_enabled and not na(tp4_price)
-        if tp_count > 0
-            json := json + ','
-        portfolio_decimal = partial4_pct / 100
-        json := json + '{"price":' + str.tostring(tp4_price, '#.########') + ',"portfolio":' + str.tostring(portfolio_decimal, '#.##') + '}'
-        tp_count := tp_count + 1
-
-    json := json + '],'
-
-    // Add stopLoss - WunderTrading format (no "type" field)
-    json := json + '"stopLoss":{"price":' + str.tostring(sl_price, '#.########') + '},'
-
-    // Add additional parameters
-    json := json + '"reduceOnly":true,'
-    json := json + '"placeConditionalOrdersOnExchange":false'
-
-    json := json + '}'
-    json
-
-// Build exit JSON for partial TP or full close (WunderTrading format)
-build_exit_json(is_long_pos, qty) =>
-    code = get_bot_code(is_long_pos ? "EXIT-LONG" : "EXIT-SHORT")
-
-    json = '{"code":"' + code + '",'
-    json := json + '"amountPerTrade":' + str.tostring(qty, '#.########') + ','
-    json := json + '"amountPerTradeType":"contracts",'
-    json := json + '"reduceOnly":true,'
-    json := json + '"placeConditionalOrdersOnExchange":false'
-    json := json + '}'
-    json
-
-// Build DCA entry JSON (WunderTrading format - no TP/SL since position already exists)
-build_dca_json(is_long_pos, qty) =>
-    code = get_bot_code(is_long_pos ? "ENTER-LONG" : "ENTER-SHORT")
-
-    json = '{"code":"' + code + '",'
-    json := json + '"orderType":"market",'
-    json := json + '"amountPerTrade":' + str.tostring(qty, '#.########') + ','
-    json := json + '"amountPerTradeType":"contracts",'
-    json := json + '"reduceOnly":false,'
-    json := json + '"placeConditionalOrdersOnExchange":false'
-    json := json + '}'
-    json
-
-// ══════════════════════════════════════════════════════════════════════════════
 // 🚀 ENTRIES
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -726,12 +640,8 @@ if longCond and not in_position
         base_qty := entry_qty
         total_qty := entry_qty
 
-        // Build entry JSON with all TP levels and SL
-        entry_json = build_entry_json(true, entry_qty, safe_sl, partial_tp1_price, partial_tp2_price, partial_tp3_price, partial_tp4_price)
-        strategy.entry("Long", strategy.long, qty=entry_qty, comment=entry_json)
-
-        // Send alert with JSON for webhook
-        alert(entry_json, alert.freq_once_per_bar_close)
+        code = get_bot_code("ENTER-LONG")
+        strategy.entry("Long", strategy.long, qty=entry_qty, comment=code)
 
         if showTradeLabels
             first_tp = partial1_enabled ? partial_tp1_price : na
@@ -783,12 +693,8 @@ if shortCond and not in_position
         base_qty := entry_qty
         total_qty := entry_qty
 
-        // Build entry JSON with all TP levels and SL
-        entry_json = build_entry_json(false, entry_qty, safe_sl, partial_tp1_price, partial_tp2_price, partial_tp3_price, partial_tp4_price)
-        strategy.entry("Short", strategy.short, qty=entry_qty, comment=entry_json)
-
-        // Send alert with JSON for webhook
-        alert(entry_json, alert.freq_once_per_bar_close)
+        code = get_bot_code("ENTER-SHORT")
+        strategy.entry("Short", strategy.short, qty=entry_qty, comment=code)
 
         if showTradeLabels
             first_tp = partial1_enabled ? partial_tp1_price : na
@@ -845,12 +751,8 @@ if use_dca and in_position and dca_count < dca_max_entries
                 dca_count += 1
                 bars_since_last_dca := 0  // Reset cooldown
 
-                // Build DCA entry JSON
-                dca_json = build_dca_json(true, dca_qty)
-                strategy.entry("Long", strategy.long, qty=dca_qty, comment=dca_json)
-
-                // Send alert with JSON for webhook
-                alert(dca_json, alert.freq_once_per_bar_close)
+                code = get_bot_code("ENTER-LONG")
+                strategy.entry("Long", strategy.long, qty=dca_qty, comment=code)
 
                 if showTradeLabels
                     label.new(bar_index, low - atrValue * 1.5, "🔄 DCA#" + str.tostring(dca_count) + "\n📊 Avg: " + str.tostring(new_avg, format.mintick),
@@ -877,12 +779,8 @@ if use_dca and in_position and dca_count < dca_max_entries
                 dca_count += 1
                 bars_since_last_dca := 0  // Reset cooldown
 
-                // Build DCA entry JSON
-                dca_json = build_dca_json(false, dca_qty)
-                strategy.entry("Short", strategy.short, qty=dca_qty, comment=dca_json)
-
-                // Send alert with JSON for webhook
-                alert(dca_json, alert.freq_once_per_bar_close)
+                code = get_bot_code("ENTER-SHORT")
+                strategy.entry("Short", strategy.short, qty=dca_qty, comment=code)
 
                 if showTradeLabels
                     label.new(bar_index, high + atrValue * 1.5, "🔄 DCA#" + str.tostring(dca_count) + "\n📊 Avg: " + str.tostring(new_avg, format.mintick),
@@ -1068,12 +966,8 @@ if in_position and not na(liq_price)
     dist_to_liq = is_long ? (close - liq_price) / close * 100 : (liq_price - close) / close * 100
 
     if dist_to_liq < min_liq_distance
-        // Build exit JSON for emergency close
-        exit_json = build_exit_json(is_long, math.abs(strategy.position_size))
-        strategy.close_all(comment=exit_json)
-
-        // Send alert with JSON for webhook
-        alert(exit_json, alert.freq_once_per_bar_close)
+        code = get_bot_code(is_long ? "EXIT-LONG" : "EXIT-SHORT")
+        strategy.close_all(comment=code)
         exit_alert_sent_this_bar := true
 
         if showTradeLabels
@@ -1091,14 +985,12 @@ if usePartialTP and partial1_enabled and in_position and not partial1_taken and 
     if partial1_hit
         // Använd total_qty (ursprunglig + DCAs) istället för strategy.position_size (kvarvarande)
         partial_qty = total_qty * (partial1_pct / 100)
-
-        // Build exit JSON for partial TP
-        exit_json = build_exit_json(is_long, math.abs(partial_qty))
+        code = get_bot_code(is_long ? "EXIT-LONG" : "EXIT-SHORT")
 
         if is_long
-            strategy.close("Long", qty=math.abs(partial_qty), comment=exit_json)
+            strategy.close("Long", qty=math.abs(partial_qty), comment=code)
         else
-            strategy.close("Short", qty=math.abs(partial_qty), comment=exit_json)
+            strategy.close("Short", qty=math.abs(partial_qty), comment=code)
 
         exit_alert_sent_this_bar := true
 
@@ -1116,14 +1008,12 @@ if usePartialTP and partial2_enabled and in_position and not partial2_taken and 
     if partial2_hit
         // Använd total_qty (ursprunglig + DCAs) istället för strategy.position_size (kvarvarande)
         partial_qty = total_qty * (partial2_pct / 100)
-
-        // Build exit JSON for partial TP
-        exit_json = build_exit_json(is_long, math.abs(partial_qty))
+        code = get_bot_code(is_long ? "EXIT-LONG" : "EXIT-SHORT")
 
         if is_long
-            strategy.close("Long", qty=math.abs(partial_qty), comment=exit_json)
+            strategy.close("Long", qty=math.abs(partial_qty), comment=code)
         else
-            strategy.close("Short", qty=math.abs(partial_qty), comment=exit_json)
+            strategy.close("Short", qty=math.abs(partial_qty), comment=code)
 
         exit_alert_sent_this_bar := true
 
@@ -1141,14 +1031,12 @@ if usePartialTP and partial3_enabled and in_position and not partial3_taken and 
     if partial3_hit
         // Använd total_qty (ursprunglig + DCAs) istället för strategy.position_size (kvarvarande)
         partial_qty = total_qty * (partial3_pct / 100)
-
-        // Build exit JSON for partial TP
-        exit_json = build_exit_json(is_long, math.abs(partial_qty))
+        code = get_bot_code(is_long ? "EXIT-LONG" : "EXIT-SHORT")
 
         if is_long
-            strategy.close("Long", qty=math.abs(partial_qty), comment=exit_json)
+            strategy.close("Long", qty=math.abs(partial_qty), comment=code)
         else
-            strategy.close("Short", qty=math.abs(partial_qty), comment=exit_json)
+            strategy.close("Short", qty=math.abs(partial_qty), comment=code)
 
         exit_alert_sent_this_bar := true
 
@@ -1166,14 +1054,12 @@ if usePartialTP and partial4_enabled and in_position and not partial4_taken and 
     if partial4_hit
         // Använd total_qty (ursprunglig + DCAs) istället för strategy.position_size (kvarvarande)
         partial_qty = total_qty * (partial4_pct / 100)
-
-        // Build exit JSON for partial TP
-        exit_json = build_exit_json(is_long, math.abs(partial_qty))
+        code = get_bot_code(is_long ? "EXIT-LONG" : "EXIT-SHORT")
 
         if is_long
-            strategy.close("Long", qty=math.abs(partial_qty), comment=exit_json)
+            strategy.close("Long", qty=math.abs(partial_qty), comment=code)
         else
-            strategy.close("Short", qty=math.abs(partial_qty), comment=exit_json)
+            strategy.close("Short", qty=math.abs(partial_qty), comment=code)
 
         exit_alert_sent_this_bar := true
 
@@ -1241,19 +1127,18 @@ sl_cooldown_passed = bars_since_all_dcas_complete >= sl_cooldown_after_dca
 sl_active = in_position and (not use_dca or (dca_count >= dca_max_entries and sl_cooldown_passed))
 
 if in_position and not na(stop_loss)
-    // Build exit JSON for SL
-    exit_json = build_exit_json(is_long, math.abs(strategy.position_size))
+    exit_code = get_bot_code(is_long ? "EXIT-LONG" : "EXIT-SHORT")
 
     if is_long
         if sl_active
             // SL active after cooldown period following all DCAs
-            strategy.exit("Exit Long", "Long", stop=stop_loss, comment_loss=exit_json)
+            strategy.exit("Exit Long", "Long", stop=stop_loss, comment_loss=exit_code)
         // DCAs still pending or cooldown not passed - no SL, only partial TPs
 
     if is_short
         if sl_active
             // SL active after cooldown period following all DCAs
-            strategy.exit("Exit Short", "Short", stop=stop_loss, comment_loss=exit_json)
+            strategy.exit("Exit Short", "Short", stop=stop_loss, comment_loss=exit_code)
         // DCAs still pending or cooldown not passed - no SL, only partial TPs
 
 // Alerts now handled via strategy.order.comment in TradingView alert settings
@@ -1318,7 +1203,7 @@ currentR = in_position and not na(avg_entry) and not na(initial_sl_dist) ? (is_l
 // ══════════════════════════════════════════════════════════════════════════════
 
 if showInfoPanel
-    var table panel = table.new(position.top_right, 2, 35, bgcolor=color.new(#000000, 85), border_width=2, border_color=color.new(#2962FF, 50))
+    var table panel = table.new(position.bottom_center, 35, 3, bgcolor=color.new(#000000, 85), border_width=2, border_color=color.new(#2962FF, 50))
 
     // Prepare all data
     trendTxt = bullTrend ? "🟢 BULL" : bearTrend ? "🔴 BEAR" : "🟡 NEUTRAL"
@@ -1330,7 +1215,7 @@ if showInfoPanel
     rTxt = in_position ? (currentR >= 0 ? "+" : "") + str.tostring(currentR, "#.##") + "R" : "—"
     rCol = currentR >= 0 ? colBull : colBear
     tp_taken_count = (partial1_taken ? 1 : 0) + (partial2_taken ? 1 : 0) + (partial3_taken ? 1 : 0) + (partial4_taken ? 1 : 0)
-    dca_done = use_dca and in_position ? math.max(0, dca_count - 1) : 0
+    dca_done = use_dca ? dca_count - 1 : 0
     dca_remaining = use_dca ? math.max(0, dca_max_entries - dca_count) : 0
     wrCol = winRate >= 50 ? colBull : winRate >= 40 ? color.yellow : colBear
     pfCol = profitFactor >= 2.0 ? colBull : profitFactor >= 1.5 ? color.yellow : colBear
@@ -1338,42 +1223,41 @@ if showInfoPanel
     netCol = strategy.netprofit >= 0 ? colBull : colBear
     posValue = in_position ? strategy.position_avg_price * math.abs(strategy.position_size) : 0.0
 
-    row = 0
+    col = 0
 
     // Header
-    table.cell(panel, 0, row, "⚡ SCALPER PRO v13.2 [15M]", text_color=color.white, text_size=size.normal, bgcolor=color.new(#2962FF, 50))
-    table.cell(panel, 1, row, "", text_color=color.white, text_size=size.normal, bgcolor=color.new(#2962FF, 50))
-    row += 1
+    table.cell(panel, col, 0, "⚡ SCALPER PRO v13.2 [SOL 15M]", text_color=color.white, text_size=size.normal, bgcolor=color.new(#2962FF, 50))
+    table.merge_cells(panel, col, 0, col + 34, 0)
 
     // === POSITION INFO ===
-    table.cell(panel, 0, row, "Status", text_color=color.gray, text_size=size.small)
-    table.cell(panel, 1, row, posTxt, text_color=posCol, text_size=size.normal)
-    row += 1
+    table.cell(panel, col, 1, "Status", text_color=color.gray, text_size=size.small)
+    table.cell(panel, col, 2, posTxt, text_color=posCol, text_size=size.normal)
+    col += 1
 
-    table.cell(panel, 0, row, "P&L %", text_color=color.gray, text_size=size.small)
-    table.cell(panel, 1, row, pnlTxt, text_color=in_position ? pnlCol : color.gray, text_size=size.normal)
-    row += 1
+    table.cell(panel, col, 1, "P&L %", text_color=color.gray, text_size=size.small)
+    table.cell(panel, col, 2, pnlTxt, text_color=in_position ? pnlCol : color.gray, text_size=size.normal)
+    col += 1
 
-    table.cell(panel, 0, row, "Current R", text_color=color.gray, text_size=size.small)
-    table.cell(panel, 1, row, rTxt, text_color=in_position ? rCol : color.gray, text_size=size.normal)
-    row += 1
+    table.cell(panel, col, 1, "Current R", text_color=color.gray, text_size=size.small)
+    table.cell(panel, col, 2, rTxt, text_color=in_position ? rCol : color.gray, text_size=size.normal)
+    col += 1
 
-    table.cell(panel, 0, row, "🏷️ Unit Cost", text_color=color.gray, text_size=size.small)
-    table.cell(panel, 1, row, in_position ? str.tostring(strategy.position_avg_price, format.mintick) : "—", text_color=color.yellow, text_size=size.normal)
-    row += 1
+    table.cell(panel, col, 1, "🏷️ Unit Cost", text_color=color.gray, text_size=size.small)
+    table.cell(panel, col, 2, in_position ? str.tostring(strategy.position_avg_price, format.mintick) : "—", text_color=color.yellow, text_size=size.normal)
+    col += 1
 
-    table.cell(panel, 0, row, "Position Value", text_color=color.gray, text_size=size.small)
-    table.cell(panel, 1, row, in_position ? "$" + str.tostring(posValue, "#") : "—", text_color=color.white, text_size=size.normal)
-    row += 1
+    table.cell(panel, col, 1, "Position Value", text_color=color.gray, text_size=size.small)
+    table.cell(panel, col, 2, in_position ? "$" + str.tostring(posValue, "#") : "—", text_color=color.white, text_size=size.normal)
+    col += 1
 
-    table.cell(panel, 0, row, "Total Entries", text_color=color.gray, text_size=size.small)
-    table.cell(panel, 1, row, in_position ? str.tostring(dca_count + 1) : "—", text_color=color.white, text_size=size.normal)
-    row += 1
+    table.cell(panel, col, 1, "Total Entries", text_color=color.gray, text_size=size.small)
+    table.cell(panel, col, 2, in_position ? str.tostring(dca_count) : "—", text_color=color.white, text_size=size.normal)
+    col += 1
 
     // Separator
-    table.cell(panel, 0, row, "━━━━━━━━━━━━━━━━━━━", text_color=color.gray, text_size=size.small)
-    table.cell(panel, 1, row, "━━━━━━━━━━━━━━━━━━━", text_color=color.gray, text_size=size.small)
-    row += 1
+    table.cell(panel, col, 1, "│", text_color=color.gray, text_size=size.normal)
+    table.cell(panel, col, 2, "│", text_color=color.gray, text_size=size.normal)
+    col += 1
 
     // === RISK MANAGEMENT ===
     slTxt = "—"
@@ -1388,87 +1272,87 @@ if showInfoPanel
             slTxt := slTxt + " 🔒BE"
         slCol := colSL
 
-    table.cell(panel, 0, row, "Stop Loss", text_color=color.gray, text_size=size.small)
-    table.cell(panel, 1, row, slTxt, text_color=slCol, text_size=size.normal)
-    row += 1
+    table.cell(panel, col, 1, "Stop Loss", text_color=color.gray, text_size=size.small)
+    table.cell(panel, col, 2, slTxt, text_color=slCol, text_size=size.normal)
+    col += 1
 
-    table.cell(panel, 0, row, "Partial TPs", text_color=color.gray, text_size=size.small)
-    table.cell(panel, 1, row, usePartialTP ? str.tostring(tp_taken_count) + "/" + str.tostring(numPartialLevels) + " taken" : "OFF", text_color=tp_taken_count > 0 ? colBull : colPartial, text_size=size.normal)
-    row += 1
+    table.cell(panel, col, 1, "Partial TPs", text_color=color.gray, text_size=size.small)
+    table.cell(panel, col, 2, usePartialTP ? str.tostring(tp_taken_count) + "/" + str.tostring(numPartialLevels) + " taken" : "OFF", text_color=tp_taken_count > 0 ? colBull : colPartial, text_size=size.normal)
+    col += 1
 
     if useTrailingStop
         trailTxt = trail_activated ? "🔥 ACTIVE" : in_position ? "⏳ Wait " + str.tostring(trailActivation, "#.#") + "R" : "OFF"
-        table.cell(panel, 0, row, "Trailing", text_color=color.gray, text_size=size.small)
-        table.cell(panel, 1, row, trailTxt, text_color=trail_activated ? color.orange : color.gray, text_size=size.normal)
-        row += 1
+        table.cell(panel, col, 1, "Trailing", text_color=color.gray, text_size=size.small)
+        table.cell(panel, col, 2, trailTxt, text_color=trail_activated ? color.orange : color.gray, text_size=size.normal)
+        col += 1
 
     liqCol = distToLiq < 10 ? colBear : distToLiq < 15 ? color.orange : colLiq
-    table.cell(panel, 0, row, "⚠️ Liq Dist", text_color=color.gray, text_size=size.small)
-    table.cell(panel, 1, row, in_position ? str.tostring(distToLiq, "#.#") + "%" : "—", text_color=liqCol, text_size=size.normal)
-    row += 1
+    table.cell(panel, col, 1, "⚠️ Liq Dist", text_color=color.gray, text_size=size.small)
+    table.cell(panel, col, 2, in_position ? str.tostring(distToLiq, "#.#") + "%" : "—", text_color=liqCol, text_size=size.normal)
+    col += 1
 
     // Separator
-    table.cell(panel, 0, row, "│", text_color=color.gray, text_size=size.normal)
-    table.cell(panel, 1, row, "│", text_color=color.gray, text_size=size.normal)
-    row += 1
+    table.cell(panel, col, 1, "│", text_color=color.gray, text_size=size.normal)
+    table.cell(panel, col, 2, "│", text_color=color.gray, text_size=size.normal)
+    col += 1
 
     // === DCA INFO ===
-    table.cell(panel, 0, row, "DCA Gjorda", text_color=color.gray, text_size=size.small)
-    table.cell(panel, 1, row, use_dca ? str.tostring(dca_done) : "OFF", text_color=use_dca ? colDCA : color.gray, text_size=size.normal)
-    row += 1
+    table.cell(panel, col, 1, "DCA Gjorda", text_color=color.gray, text_size=size.small)
+    table.cell(panel, col, 2, use_dca ? str.tostring(dca_done) : "OFF", text_color=use_dca ? colDCA : color.gray, text_size=size.normal)
+    col += 1
 
     if use_dca
-        table.cell(panel, 0, row, "DCA Kvar", text_color=color.gray, text_size=size.small)
-        table.cell(panel, 1, row, str.tostring(dca_remaining), text_color=dca_remaining > 0 ? colDCA : color.gray, text_size=size.normal)
-        row += 1
+        table.cell(panel, col, 1, "DCA Kvar", text_color=color.gray, text_size=size.small)
+        table.cell(panel, col, 2, str.tostring(dca_remaining), text_color=dca_remaining > 0 ? colDCA : color.gray, text_size=size.normal)
+        col += 1
 
     // Separator
-    table.cell(panel, 0, row, "│", text_color=color.gray, text_size=size.normal)
-    table.cell(panel, 1, row, "│", text_color=color.gray, text_size=size.normal)
-    row += 1
+    table.cell(panel, col, 1, "│", text_color=color.gray, text_size=size.normal)
+    table.cell(panel, col, 2, "│", text_color=color.gray, text_size=size.normal)
+    col += 1
 
     // === MARKET CONDITIONS ===
-    table.cell(panel, 0, row, "Trend", text_color=color.gray, text_size=size.small)
-    table.cell(panel, 1, row, trendTxt, text_color=trendCol, text_size=size.normal)
-    row += 1
+    table.cell(panel, col, 1, "Trend", text_color=color.gray, text_size=size.small)
+    table.cell(panel, col, 2, trendTxt, text_color=trendCol, text_size=size.normal)
+    col += 1
 
     adxTxt = str.tostring(adxValue, "#.#") + " " + (adxValue >= adxStrong ? "💪 STARK" : adxValue >= adxThreshold ? "✓ OK" : "⚠️ SVAG")
     adxCol = adxValue >= adxStrong ? colBull : adxValue >= adxThreshold ? color.yellow : colBear
-    table.cell(panel, 0, row, "ADX", text_color=color.gray, text_size=size.small)
-    table.cell(panel, 1, row, adxTxt, text_color=adxCol, text_size=size.normal)
-    row += 1
+    table.cell(panel, col, 1, "ADX", text_color=color.gray, text_size=size.small)
+    table.cell(panel, col, 2, adxTxt, text_color=adxCol, text_size=size.normal)
+    col += 1
 
     macdTxt = (macdLine > signalLine ? "🟢" : "🔴") + (macdHistGrowing ? " ⬆" : " ⬇")
-    table.cell(panel, 0, row, "MACD", text_color=color.gray, text_size=size.small)
-    table.cell(panel, 1, row, macdTxt, text_color=macdLine > signalLine ? colBull : colBear, text_size=size.normal)
-    row += 1
+    table.cell(panel, col, 1, "MACD", text_color=color.gray, text_size=size.small)
+    table.cell(panel, col, 2, macdTxt, text_color=macdLine > signalLine ? colBull : colBear, text_size=size.normal)
+    col += 1
 
     volTxt = volume > volMA * volMultiplier ? "🟢 HIGH" : "🟡 LOW"
-    table.cell(panel, 0, row, "Volume", text_color=color.gray, text_size=size.small)
-    table.cell(panel, 1, row, volTxt, text_color=volume > volMA * volMultiplier ? colBull : color.yellow, text_size=size.normal)
-    row += 1
+    table.cell(panel, col, 1, "Volume", text_color=color.gray, text_size=size.small)
+    table.cell(panel, col, 2, volTxt, text_color=volume > volMA * volMultiplier ? colBull : color.yellow, text_size=size.normal)
+    col += 1
 
     volStatus = volRatio >= volThreshold ? "🔥 HÖG" : volRatio >= 1.0 ? "📊 NORMAL" : "🧊 LÅG"
     volColor = volRatio >= volThreshold ? color.orange : volRatio >= 1.0 ? color.yellow : color.aqua
-    table.cell(panel, 0, row, "Volatilitet", text_color=color.gray, text_size=size.small)
-    table.cell(panel, 1, row, volStatus + " " + str.tostring(volRatio, "#.##"), text_color=volColor, text_size=size.normal)
-    row += 1
+    table.cell(panel, col, 1, "Volatilitet", text_color=color.gray, text_size=size.small)
+    table.cell(panel, col, 2, volStatus + " " + str.tostring(volRatio, "#.##"), text_color=volColor, text_size=size.normal)
+    col += 1
 
     // Separator
-    table.cell(panel, 0, row, "│", text_color=color.gray, text_size=size.normal)
-    table.cell(panel, 1, row, "│", text_color=color.gray, text_size=size.normal)
-    row += 1
+    table.cell(panel, col, 1, "│", text_color=color.gray, text_size=size.normal)
+    table.cell(panel, col, 2, "│", text_color=color.gray, text_size=size.normal)
+    col += 1
 
     // === DYNAMIC MULTIPLIERS ===
     if useDynamicSL
-        table.cell(panel, 0, row, "SL Multipel", text_color=color.gray, text_size=size.small)
-        table.cell(panel, 1, row, str.tostring(dynamicSLMult, "#.#") + "x ATR", text_color=color.new(colSL, 0), text_size=size.normal)
-        row += 1
+        table.cell(panel, col, 1, "SL Multipel", text_color=color.gray, text_size=size.small)
+        table.cell(panel, col, 2, str.tostring(dynamicSLMult, "#.#") + "x ATR", text_color=color.new(colSL, 0), text_size=size.normal)
+        col += 1
 
     if useDynamicDCA
-        table.cell(panel, 0, row, "DCA Spacing", text_color=color.gray, text_size=size.small)
-        table.cell(panel, 1, row, str.tostring(dynamicDCAMult, "#.#") + "x ATR", text_color=color.new(colDCA, 0), text_size=size.normal)
-        row += 1
+        table.cell(panel, col, 1, "DCA Spacing", text_color=color.gray, text_size=size.small)
+        table.cell(panel, col, 2, str.tostring(dynamicDCAMult, "#.#") + "x ATR", text_color=color.new(colDCA, 0), text_size=size.normal)
+        col += 1
 
     if useDynamicPartialTP and usePartialTP and numPartialLevels > 0
         r_values = str.tostring(dynamicPartial1_R, "#.#") + "R"
@@ -1478,34 +1362,34 @@ if showInfoPanel
             r_values += ", " + str.tostring(dynamicPartial3_R, "#.#") + "R"
         if numPartialLevels >= 4
             r_values += ", " + str.tostring(dynamicPartial4_R, "#.#") + "R"
-        table.cell(panel, 0, row, "Partial TP Rs", text_color=color.gray, text_size=size.small)
-        table.cell(panel, 1, row, r_values, text_color=color.new(colPartial, 0), text_size=size.normal)
-        row += 1
+        table.cell(panel, col, 1, "Partial TP Rs", text_color=color.gray, text_size=size.small)
+        table.cell(panel, col, 2, r_values, text_color=color.new(colPartial, 0), text_size=size.normal)
+        col += 1
 
     // Separator
-    table.cell(panel, 0, row, "│", text_color=color.gray, text_size=size.normal)
-    table.cell(panel, 1, row, "│", text_color=color.gray, text_size=size.normal)
-    row += 1
+    table.cell(panel, col, 1, "│", text_color=color.gray, text_size=size.normal)
+    table.cell(panel, col, 2, "│", text_color=color.gray, text_size=size.normal)
+    col += 1
 
     // === PERFORMANCE ===
-    table.cell(panel, 0, row, "Trades", text_color=color.gray, text_size=size.small)
-    table.cell(panel, 1, row, str.tostring(totalTrades), text_color=color.white, text_size=size.normal)
-    row += 1
+    table.cell(panel, col, 1, "Trades", text_color=color.gray, text_size=size.small)
+    table.cell(panel, col, 2, str.tostring(totalTrades), text_color=color.white, text_size=size.normal)
+    col += 1
 
-    table.cell(panel, 0, row, "Win Rate", text_color=color.gray, text_size=size.small)
-    table.cell(panel, 1, row, str.tostring(winRate, "#.#") + "%", text_color=wrCol, text_size=size.normal)
-    row += 1
+    table.cell(panel, col, 1, "Win Rate", text_color=color.gray, text_size=size.small)
+    table.cell(panel, col, 2, str.tostring(winRate, "#.#") + "%", text_color=wrCol, text_size=size.normal)
+    col += 1
 
-    table.cell(panel, 0, row, "Profit Factor", text_color=color.gray, text_size=size.small)
-    table.cell(panel, 1, row, str.tostring(profitFactor, "#.##"), text_color=pfCol, text_size=size.normal)
-    row += 1
+    table.cell(panel, col, 1, "Profit Factor", text_color=color.gray, text_size=size.small)
+    table.cell(panel, col, 2, str.tostring(profitFactor, "#.##"), text_color=pfCol, text_size=size.normal)
+    col += 1
 
-    table.cell(panel, 0, row, "Avg R:R", text_color=color.gray, text_size=size.small)
-    table.cell(panel, 1, row, str.tostring(avgRR, "#.##"), text_color=rrCol, text_size=size.normal)
-    row += 1
+    table.cell(panel, col, 1, "Avg R:R", text_color=color.gray, text_size=size.small)
+    table.cell(panel, col, 2, str.tostring(avgRR, "#.##"), text_color=rrCol, text_size=size.normal)
+    col += 1
 
-    table.cell(panel, 0, row, "Net P&L", text_color=color.gray, text_size=size.small)
-    table.cell(panel, 1, row, "$" + str.tostring(strategy.netprofit, "#"), text_color=netCol, text_size=size.normal)
+    table.cell(panel, col, 1, "Net P&L", text_color=color.gray, text_size=size.small)
+    table.cell(panel, col, 2, "$" + str.tostring(strategy.netprofit, "#"), text_color=netCol, text_size=size.normal)
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 🔔 ALERTS - WunderTrading Setup
