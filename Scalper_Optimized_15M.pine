@@ -134,16 +134,16 @@ usePartialTP = input.bool(true, "✓ Partial Take Profit System", group=grpRisk,
 numPartialLevels = input.int(3, "Antal Partial TP Nivåer", step=1, group=grpRisk, tooltip="1-4 partial TP nivåer (0 = av)")
 
 // 📊 DYNAMISKA PARTIAL TP (ATR-baserade och uppdateras löpande)
-useDynamicPartialTP = input.bool(true, "✓ Dynamiska TP baserat på löpande ATR", group=grpRisk, tooltip="TP-nivåer uppdateras kontinuerligt baserat på aktuell ATR")
+useDynamicPartialTP = input.bool(false, "✓ Dynamiska TP baserat på löpande ATR", group=grpRisk, tooltip="TP-nivåer uppdateras kontinuerligt baserat på aktuell ATR")
 tp_atr_adjustment_freq = input.int(5, "TP ATR Update Frekvens (bars)", minval=1, group=grpRisk, tooltip="Hur ofta TP-nivåer uppdateras baserat på ATR")
 
 // 🎯 TP TRAILING
-use_tp_trailing = input.bool(true, "✓ TP Trailing", group=grpRisk, tooltip="Trail TP-nivåer när priset närmar sig")
+use_tp_trailing = input.bool(false, "✓ TP Trailing", group=grpRisk, tooltip="Trail TP-nivåer när priset närmar sig")
 tp_trail_activation_pct = input.float(90.0, "TP Trail Aktivering %", step=5.0, group=grpRisk, tooltip="Trail när priset når X% av avståndet till TP")
 tp_trail_offset_pct = input.float(0.3, "TP Trail Offset %", step=0.1, group=grpRisk, tooltip="Trail TP denna % från högsta/lägsta pris")
 
 // ⏰ TP TIME DECAY
-use_tp_time_decay = input.bool(true, "✓ TP Time Decay", group=grpRisk, tooltip="Dra ner TP3/TP4 närmare med tiden om de inte träffas")
+use_tp_time_decay = input.bool(false, "✓ TP Time Decay", group=grpRisk, tooltip="Dra ner TP3/TP4 närmare med tiden om de inte träffas")
 tp_decay_start_bars = input.int(20, "Decay Start (bars)", minval=1, group=grpRisk, tooltip="Börja dra ner TP3/TP4 efter X bars")
 tp_decay_rate = input.float(0.5, "Decay Rate %", step=0.1, group=grpRisk, tooltip="Hur mycket % TP3/TP4 dras ner per 10 bars")
 
