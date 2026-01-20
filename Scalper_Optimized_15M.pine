@@ -1205,10 +1205,8 @@ currentR = in_position and not na(avg_entry) and not na(initial_sl_dist) ? (is_l
 if showInfoPanel
     var table panel = table.new(position.bottom_center, 35, 3, bgcolor=color.new(#000000, 85), border_width=2, border_color=color.new(#2962FF, 50))
 
-    // Prepare all data
-    trendTxt = bullTrend ? "🟢 BULL" : bearTrend ? "🔴 BEAR" : "🟡 NEUTRAL"
-    trendCol = bullTrend ? colBull : bearTrend ? colBear : color.yellow
-    posTxt = is_long ? "🟢 LONG" : is_short ? "🔴 SHORT" : "⚪ FLAT"
+    // Prepare compact data
+    posTxt = is_long ? "🟢 L" : is_short ? "🔴 S" : "⚪"
     posCol = is_long ? colBull : is_short ? colBear : color.gray
     pnlTxt = in_position ? (currentPnL >= 0 ? "+" : "") + str.tostring(currentPnL, "#.##") + "%" : "—"
     pnlCol = currentPnL >= 0 ? colBull : colBear
@@ -1259,13 +1257,12 @@ if showInfoPanel
     table.cell(panel, col, 2, "│", text_color=color.gray, text_size=size.normal)
     col += 1
 
-    // === RISK MANAGEMENT ===
+    // SL ultra compact
     slTxt = "—"
-    slCol = color.gray
     if in_position and use_dca and dca_count < dca_max_entries
-        slTxt := "⏸️ Väntar DCA"
+        slTxt := "⏸️"
     else if in_position and not sl_active
-        slTxt := "⏳ Cooldown " + str.tostring(sl_cooldown_after_dca - bars_since_all_dcas_complete) + " bars"
+        slTxt := "⏳" + str.tostring(sl_cooldown_after_dca - bars_since_all_dcas_complete)
     else if in_position
         slTxt := str.tostring(stop_loss, format.mintick)
         if breakeven_moved
