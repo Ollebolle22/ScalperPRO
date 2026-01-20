@@ -1,0 +1,448 @@
+//@version=6
+strategy("⚡ Trend Pyramiding 1M",
+         shorttitle="PYRAMID1M",
+         overlay=true,
+         pyramiding=5,
+         calc_on_every_tick=false,
+         process_orders_on_close=true,
+         default_qty_type=strategy.percent_of_equity,
+         default_qty_value=20,
+         initial_capital=1000,
+         currency=currency.USD,
+         commission_type=strategy.commission.percent,
+         commission_value=0.0,
+         slippage=0)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 📊 STRATEGI BESKRIVNING
+// ═══════════════════════════════════════════════════════════════════════════════
+// TREND PYRAMIDING - Följ trenden med flera entries!
+//
+// **PYRAMIDING APPROACH:**
+// ✅ 5 ENTRIES möjliga i samma trend (pyramiding=5)
+// ✅ 20% av equity per entry = Kan buildup till 100% exponering
+// ✅ INGA FEES (commission=0%, slippage=0)
+// ✅ Endast EN riktning åt gången (antingen alla longs ELLER alla shorts)
+//
+// **ENTRY LOGIC:**
+// - Initial entry: EMA crossover + stark trend (ADX ≥25)
+// - Additional entries: Pris fortsätter i trend-riktning + pullbacks
+// - Max 5 entries totalt i samma trend
+//
+// **EXIT LOGIC:**
+// ✅ TRAILING STOP - Låter hela positionen löpa med trenden
+// ✅ Exit när trend vänder (EMA cross åt andra hållet)
+// ✅ Ingen fixed TP - Låter vinster löpa!
+//
+// **TREND FILTERS:**
+// - EMA 9/21/50 full alignment
+// - EMA 200 major trend filter (endast longs över, endast shorts under)
+// - ADX ≥25 för starka trends
+// - Price trend filter enabled
+// - Volume confirmation
+//
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ⚙️ INSTÄLLNINGAR
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// 💰 Kapital & Leverage
+leverage = input.float(1.0, "Leverage", minval=1.0, maxval=20.0, step=0.5, group="💰 Kapital & Leverage", tooltip="Trading leverage (1x för pyramiding, utan fees)")
+position_size_pct = input.float(20.0, "Position Size % per Entry", minval=10, maxval=50, step=5, group="💰 Kapital & Leverage", tooltip="Procent per entry (20% × 5 entries = 100% total)")
+max_pyramiding = input.int(5, "Max Pyramid Entries", minval=1, maxval=10, group="💰 Kapital & Leverage", tooltip="Max antal entries i samma trend")
+
+// 📈 EMA Inställningar
+ema_fast_length = input.int(9, "EMA Fast", minval=5, maxval=21, group="📈 EMA Inställningar", tooltip="Snabb EMA för momentum (9 för 1min)")
+ema_slow_length = input.int(21, "EMA Slow", minval=13, maxval=50, group="📈 EMA Inställningar", tooltip="Långsam EMA för trend (21 för 1min)")
+ema_trend_length = input.int(50, "EMA Trend", minval=21, maxval=200, group="📈 EMA Inställningar", tooltip="Trend filter EMA (50 för 1min)")
+ema_major_length = input.int(200, "EMA Major Trend", minval=100, maxval=500, group="📈 EMA Inställningar", tooltip="Major trend EMA (200) - Long endast över, Short endast under")
+use_ema_major_filter = input.bool(true, "Use EMA 200 Filter", group="📈 EMA Inställningar", tooltip="Endast longs över EMA 200, endast shorts under EMA 200")
+
+// 🎯 RSI Momentum
+rsi_length = input.int(14, "RSI Period", minval=7, maxval=21, group="🎯 RSI Momentum", tooltip="RSI period för momentum")
+rsi_long_min = input.int(35, "RSI Long Min", minval=20, maxval=55, group="🎯 RSI Momentum", tooltip="Minimum RSI för longs")
+rsi_long_max = input.int(75, "RSI Long Max", minval=55, maxval=85, group="🎯 RSI Momentum", tooltip="Maximum RSI för longs")
+rsi_short_min = input.int(25, "RSI Short Min", minval=15, maxval=45, group="🎯 RSI Momentum", tooltip="Minimum RSI för shorts")
+rsi_short_max = input.int(65, "RSI Short Max", minval=45, maxval=80, group="🎯 RSI Momentum", tooltip="Maximum RSI för shorts")
+
+// 📊 MACD Confirmation
+macd_fast = input.int(12, "MACD Fast", minval=8, maxval=15, group="📊 MACD", tooltip="MACD fast length")
+macd_slow = input.int(26, "MACD Slow", minval=20, maxval=35, group="📊 MACD", tooltip="MACD slow length")
+macd_signal = input.int(9, "MACD Signal", minval=7, maxval=12, group="📊 MACD", tooltip="MACD signal length")
+use_macd = input.bool(false, "Use MACD Filter", group="📊 MACD", tooltip="MACD filter (DISABLED för fler trades)")
+
+// 💪 ADX Trend Strength
+adx_length = input.int(14, "ADX Period", minval=7, maxval=21, group="💪 ADX Trend Strength", tooltip="ADX period")
+adx_threshold = input.float(25.0, "ADX Minimum", minval=15.0, maxval=40.0, step=1.0, group="💪 ADX Trend Strength", tooltip="ADX minimum för initial entry (25 = starka trends)")
+use_adx = input.bool(true, "Use ADX Filter", group="💪 ADX Trend Strength", tooltip="ADX filter")
+
+// 📦 Volume Filter
+volume_multiplier = input.float(1.1, "Volume Multiplier", minval=0.8, maxval=2.5, step=0.1, group="📦 Volume Filter", tooltip="Minimum volume vs MA (1.1 = bara 10% över)")
+volume_ma_length = input.int(20, "Volume MA Period", minval=10, maxval=50, group="📦 Volume Filter", tooltip="Period för volume moving average")
+use_volume = input.bool(true, "Use Volume Filter", group="📦 Volume Filter", tooltip="Volume filter (kan disablas för ännu fler trades)")
+
+// 🎯 Risk Management (Enkel SL/TP)
+atr_length = input.int(14, "ATR Period", minval=7, maxval=21, group="🎯 Risk Management", tooltip="ATR period för SL/TP beräkning")
+sl_atr_multiplier = input.float(2.0, "Stop Loss (ATR x)", minval=1.0, maxval=3.0, step=0.1, group="🎯 Risk Management", tooltip="Stop loss distans (ATR multiplier)")
+tp_atr_multiplier = input.float(3.0, "Take Profit (ATR x)", minval=2.0, maxval=8.0, step=0.5, group="🎯 Risk Management", tooltip="Take profit distans (lägre = lättare att nå)")
+
+// 🎯 Trailing Stop & Breakeven
+use_trailing = input.bool(true, "Use Trailing Stop", group="🎯 Trailing & Breakeven", tooltip="Aktivera trailing stop för att låta vinster löpa")
+trailing_activation = input.float(1.5, "Trailing Activation (R)", minval=0.5, maxval=5.0, step=0.5, group="🎯 Trailing & Breakeven", tooltip="Aktivera trailing vid X × risk (1.5 = 1.5R profit)")
+trailing_distance = input.float(1.2, "Trailing Distance (ATR x)", minval=0.5, maxval=3.0, step=0.1, group="🎯 Trailing & Breakeven", tooltip="Trailing stop distans i ATR")
+
+use_breakeven = input.bool(true, "Use Breakeven Move", group="🎯 Trailing & Breakeven", tooltip="Flytta SL till break-even vid profit")
+breakeven_activation = input.float(1.2, "Breakeven at (R)", minval=0.5, maxval=3.0, step=0.1, group="🎯 Trailing & Breakeven", tooltip="Flytta till breakeven vid X × risk")
+breakeven_buffer = input.float(0.1, "Breakeven Buffer (ATR x)", minval=0.0, maxval=0.5, step=0.05, group="🎯 Trailing & Breakeven", tooltip="Buffer över break-even för fees")
+
+// 📈 Starkare Trend Filter
+use_strong_trend_only = input.bool(true, "Only Trade Strong Trends", group="📈 Starkare Trend Filter", tooltip="Kräv stark trend (enabled som default för pyramiding)")
+strong_adx_threshold = input.float(28.0, "Strong Trend ADX", minval=20.0, maxval=40.0, step=1.0, group="📈 Starkare Trend Filter", tooltip="ADX nivå för stark trend (28+ = mycket starkt)")
+use_price_trend_filter = input.bool(true, "Price Trend Filter", group="📈 Starkare Trend Filter", tooltip="Kräv att priset är över/under långsiktig EMA")
+
+// 🔄 Pyramiding Settings
+pyramid_spacing_atr = input.float(0.5, "Pyramid Spacing (ATR)", minval=0.1, maxval=2.0, step=0.1, group="🔄 Pyramiding", tooltip="Distans mellan entries (i ATR)")
+use_pyramid_pullback = input.bool(true, "Pyramid on Pullbacks", group="🔄 Pyramiding", tooltip="Vänta på små pullbacks innan nästa entry")
+pullback_rsi_threshold = input.int(55, "Pullback RSI Level", minval=40, maxval=70, group="🔄 Pyramiding", tooltip="RSI nivå för pullback entry (55 för longs)")
+
+// ⏰ Cooling Period
+bars_between_entries = input.int(3, "Bars Between Entries", minval=0, maxval=20, group="⏰ Timing", tooltip="Bars mellan pyramid entries (3 = vänta lite mellan köp)")
+
+// 🤖 Bot Configuration (WunderTrading)
+bot_id = input.string("your_bot_id_here", "Bot ID", group="🤖 Bot Config", tooltip="WunderTrading bot ID")
+exchange_name = input.string("HyperLiquid", "Exchange", options=["HyperLiquid", "Binance", "Bybit", "OKX"], group="🤖 Bot Config")
+pair_name = input.string("SOL-USDC", "Trading Pair", group="🤖 Bot Config", tooltip="Format: BTC-USDT, ETH-USDC, etc.")
+strategy_name_bot = input.string("FMS_1M", "Strategy Name", group="🤖 Bot Config", tooltip="Kort namn för strategin")
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 📊 INDIKATORER
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// EMA beräkningar
+ema_fast = ta.ema(close, ema_fast_length)
+ema_slow = ta.ema(close, ema_slow_length)
+ema_trend = ta.ema(close, ema_trend_length)
+ema_major = ta.ema(close, ema_major_length)
+
+// RSI för momentum
+rsi = ta.rsi(close, rsi_length)
+rsi_prev = ta.rsi(close[1], rsi_length)
+
+// MACD för trend confirmation
+[macd_line, signal_line, hist_line] = ta.macd(close, macd_fast, macd_slow, macd_signal)
+macd_bullish = macd_line > signal_line and hist_line > 0
+macd_bearish = macd_line < signal_line and hist_line < 0
+macd_bull_cross = ta.crossover(macd_line, signal_line)
+macd_bear_cross = ta.crossunder(macd_line, signal_line)
+
+// ADX för trend styrka
+[diPlus, diMinus, adx] = ta.dmi(adx_length, adx_length)
+
+// ATR för volatilitet och SL/TP
+atr = ta.atr(atr_length)
+
+// Volume filter
+volume_ma = ta.sma(volume, volume_ma_length)
+volume_ok = use_volume ? (volume > volume_ma * volume_multiplier) : true
+
+// Pyramid entry tracking
+var int last_entry_bar = 0
+var float last_entry_price = 0.0
+var int entry_count = 0
+bars_since_entry = bar_index - last_entry_bar
+spacing_ok = bars_between_entries > 0 ? (bars_since_entry >= bars_between_entries) : true
+
+// Track number of current entries
+current_entries = strategy.opentrades
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🎯 ENTRY CONDITIONS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Momentum conditions med RSI zones
+bullish_momentum = rsi >= rsi_long_min and rsi <= rsi_long_max and rsi > rsi_prev
+bearish_momentum = rsi >= rsi_short_min and rsi <= rsi_short_max and rsi < rsi_prev
+
+// EMA crossovers
+ema_bull_cross = ta.crossover(ema_fast, ema_slow)
+ema_bear_cross = ta.crossunder(ema_fast, ema_slow)
+
+// EMA alignment - ALLA EMAs måste vara aligned!
+price_above_trend = close > ema_trend
+price_below_trend = close < ema_trend
+ema_bullish = ema_fast > ema_slow
+ema_bearish = ema_fast < ema_slow
+// Extra: Kräv att slow > trend för longs, slow < trend för shorts
+ema_full_bull_align = ema_fast > ema_slow and ema_slow > ema_trend
+ema_full_bear_align = ema_fast < ema_slow and ema_slow < ema_trend
+
+// Trend strength (om enabled)
+strong_trend = use_adx ? (adx >= adx_threshold) : true
+
+// Extra stark trend filter (om enabled)
+very_strong_trend = use_strong_trend_only ? (adx >= strong_adx_threshold) : true
+
+// Price trend filter - Priset måste vara på rätt sida av trend EMA
+price_trend_ok_long = use_price_trend_filter ? (close > ema_trend and ema_slow > ema_trend) : true
+price_trend_ok_short = use_price_trend_filter ? (close < ema_trend and ema_slow < ema_trend) : true
+
+// MACD confirmation (om enabled)
+macd_ok_long = use_macd ? (macd_bullish or macd_bull_cross) : true
+macd_ok_short = use_macd ? (macd_bearish or macd_bear_cross) : true
+
+// EMA 200 Major Trend Filter - Endast longs över, endast shorts under
+ema_major_ok_long = use_ema_major_filter ? (close > ema_major) : true
+ema_major_ok_short = use_ema_major_filter ? (close < ema_major) : true
+
+// Position state
+in_long = strategy.position_size > 0
+in_short = strategy.position_size < 0
+no_position = strategy.position_size == 0
+can_add_entry = current_entries < max_pyramiding
+
+// INITIAL LONG Entry (no position)
+initial_long = no_position and ema_bull_cross and bullish_momentum and ema_full_bull_align and strong_trend and very_strong_trend and price_trend_ok_long and volume_ok and macd_ok_long and ema_major_ok_long
+
+// PYRAMID LONG Entry (already in long)
+pyramid_long_condition = in_long and can_add_entry and spacing_ok and ema_full_bull_align and strong_trend and (use_pyramid_pullback ? (rsi < pullback_rsi_threshold) : true) and ((close > last_entry_price + (atr * pyramid_spacing_atr)) or (use_pyramid_pullback == false)) and ema_major_ok_long
+
+// INITIAL SHORT Entry (no position)
+initial_short = no_position and ema_bear_cross and bearish_momentum and ema_full_bear_align and strong_trend and very_strong_trend and price_trend_ok_short and volume_ok and macd_ok_short and ema_major_ok_short
+
+// PYRAMID SHORT Entry (already in short)
+pyramid_short_condition = in_short and can_add_entry and spacing_ok and ema_full_bear_align and strong_trend and (use_pyramid_pullback ? (rsi > (100 - pullback_rsi_threshold)) : true) and ((close < last_entry_price - (atr * pyramid_spacing_atr)) or (use_pyramid_pullback == false)) and ema_major_ok_short
+
+// Final conditions
+long_condition = initial_long or pyramid_long_condition
+short_condition = initial_short or pyramid_short_condition
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 💼 POSITION MANAGEMENT
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Calculate position size (contracts)
+equity = strategy.equity
+position_value = (equity * position_size_pct / 100) * leverage
+contracts = position_value / close
+
+// SL/TP levels
+long_sl = close - (atr * sl_atr_multiplier)
+long_tp = close + (atr * tp_atr_multiplier)
+
+short_sl = close + (atr * sl_atr_multiplier)
+short_tp = close - (atr * tp_atr_multiplier)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🔔 ALERT MESSAGE BUILDER (WunderTrading Format)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Build bot code
+build_code(action) =>
+    action + "_" + exchange_name + "_" + pair_name + "_" + strategy_name_bot + "_" + bot_id
+
+// Build alert message for entry
+build_entry_alert(direction, sl_price, tp_price, qty) =>
+    code = build_code(direction)
+    '{\n' +
+     '  "code": "' + code + '",\n' +
+     '  "orderType": "market",\n' +
+     '  "amountPerTrade": ' + str.tostring(qty, "#.####") + ',\n' +
+     '  "amountPerTradeType": "contracts",\n' +
+     '  "leverage": ' + str.tostring(leverage, "#.#") + ',\n' +
+     '  "stopLoss": {"price": ' + str.tostring(sl_price, "#.####") + '},\n' +
+     '  "takeProfit": {"price": ' + str.tostring(tp_price, "#.####") + '},\n' +
+     '  "reduceOnly": false,\n' +
+     '  "placeConditionalOrdersOnExchange": false\n' +
+     '}'
+
+// Build alert message for exit
+build_exit_alert(direction, qty) =>
+    code = build_code(direction)
+    '{\n' +
+     '  "code": "' + code + '",\n' +
+     '  "amountPerTrade": ' + str.tostring(qty, "#.####") + ',\n' +
+     '  "amountPerTradeType": "contracts",\n' +
+     '  "reduceOnly": true,\n' +
+     '  "placeConditionalOrdersOnExchange": false\n' +
+     '}'
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 📈 STRATEGY EXECUTION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Variables för entry price och risk
+var float entry_price = 0.0
+var float risk_amount = 0.0
+var float initial_entry_price = 0.0
+
+// LONG Entry (both initial and pyramid)
+if long_condition
+    if no_position[1]  // First entry
+        initial_entry_price := close
+
+    entry_price := close
+    last_entry_bar := bar_index
+    last_entry_price := close
+    risk_amount := atr * sl_atr_multiplier
+
+    alert_msg = build_entry_alert("ENTER-LONG", long_sl, long_tp, contracts)
+    strategy.entry("LONG", strategy.long, qty=contracts, comment=build_code("ENTER-LONG"), alert_message=alert_msg)
+
+// SHORT Entry (both initial and pyramid)
+if short_condition
+    if no_position[1]  // First entry
+        initial_entry_price := close
+
+    entry_price := close
+    last_entry_bar := bar_index
+    last_entry_price := close
+    risk_amount := atr * sl_atr_multiplier
+
+    alert_msg = build_entry_alert("ENTER-SHORT", short_sl, short_tp, contracts)
+    strategy.entry("SHORT", strategy.short, qty=contracts, comment=build_code("ENTER-SHORT"), alert_message=alert_msg)
+
+// EXIT CONDITIONS - Close ALL when trend reverses
+trend_reversal_long = in_long and ema_bear_cross
+trend_reversal_short = in_short and ema_bull_cross
+
+if trend_reversal_long
+    strategy.close_all(comment=build_code("EXIT-LONG-REVERSAL"), alert_message=build_exit_alert("EXIT-LONG", contracts))
+
+if trend_reversal_short
+    strategy.close_all(comment=build_code("EXIT-SHORT-REVERSAL"), alert_message=build_exit_alert("EXIT-SHORT", contracts))
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🎯 TRAILING STOP MANAGEMENT (För hela positionen)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// LONG Position Management
+if in_long
+    profit_points = close - initial_entry_price
+    profit_in_r = profit_points / risk_amount
+
+    // Initial stop loss (från första entry)
+    initial_sl = initial_entry_price - (atr * sl_atr_multiplier)
+
+    // Breakeven move (för hela positionen)
+    if use_breakeven and profit_in_r >= breakeven_activation
+        breakeven_price = initial_entry_price + (atr * breakeven_buffer)
+        strategy.exit("LONG_EXIT", "LONG", stop=breakeven_price, comment=build_code("EXIT-LONG"), alert_message=build_exit_alert("EXIT-LONG", contracts))
+
+    // Trailing stop (aktiveras när profit är tillräckligt)
+    else if use_trailing and profit_in_r >= trailing_activation
+        trail_offset = atr * trailing_distance
+        strategy.exit("LONG_EXIT", "LONG", stop=close - trail_offset, trail_offset=trail_offset, comment=build_code("EXIT-LONG"), alert_message=build_exit_alert("EXIT-LONG", contracts))
+
+    // Initial SL (innan breakeven/trailing aktiveras)
+    else
+        strategy.exit("LONG_EXIT", "LONG", stop=initial_sl, comment=build_code("EXIT-LONG"), alert_message=build_exit_alert("EXIT-LONG", contracts))
+
+// SHORT Position Management
+if in_short
+    profit_points = initial_entry_price - close
+    profit_in_r = profit_points / risk_amount
+
+    // Initial stop loss (från första entry)
+    initial_sl = initial_entry_price + (atr * sl_atr_multiplier)
+
+    // Breakeven move (för hela positionen)
+    if use_breakeven and profit_in_r >= breakeven_activation
+        breakeven_price = initial_entry_price - (atr * breakeven_buffer)
+        strategy.exit("SHORT_EXIT", "SHORT", stop=breakeven_price, comment=build_code("EXIT-SHORT"), alert_message=build_exit_alert("EXIT-SHORT", contracts))
+
+    // Trailing stop
+    else if use_trailing and profit_in_r >= trailing_activation
+        trail_offset = atr * trailing_distance
+        strategy.exit("SHORT_EXIT", "SHORT", stop=close + trail_offset, trail_offset=trail_offset, comment=build_code("EXIT-SHORT"), alert_message=build_exit_alert("EXIT-SHORT", contracts))
+
+    // Initial SL (innan breakeven/trailing aktiveras)
+    else
+        strategy.exit("SHORT_EXIT", "SHORT", stop=initial_sl, comment=build_code("EXIT-SHORT"), alert_message=build_exit_alert("EXIT-SHORT", contracts))
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🎨 VISUALISERING
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Plot EMAs
+plot(ema_fast, "EMA Fast", color=color.new(color.yellow, 0), linewidth=2)
+plot(ema_slow, "EMA Slow", color=color.new(color.orange, 0), linewidth=2)
+plot(ema_trend, "EMA Trend", color=color.new(color.blue, 0), linewidth=2)
+plot(ema_major, "EMA 200", color=color.new(color.purple, 0), linewidth=3)
+
+// Plot entry signals
+plotshape(long_condition, "LONG", shape.triangleup, location.belowbar, color.new(color.green, 0), size=size.small)
+plotshape(short_condition, "SHORT", shape.triangledown, location.abovebar, color.new(color.red, 0), size=size.small)
+
+// Background color för trend
+bgcolor(price_above_trend and ema_bullish ? color.new(color.green, 95) : price_below_trend and ema_bearish ? color.new(color.red, 95) : na)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 📊 DASHBOARD INFO
+// ═══════════════════════════════════════════════════════════════════════════════
+
+var table dashboard = table.new(position.top_right, 2, 12, border_width=2, border_color=color.gray, frame_color=color.gray, frame_width=1)
+
+if barstate.islast
+    // Header
+    table.cell(dashboard, 0, 0, "⚡ Fast Momentum Scalper 1M", text_color=color.white, bgcolor=color.new(color.blue, 30), text_size=size.normal)
+    table.merge_cells(dashboard, 0, 0, 1, 0)
+
+    // RSI
+    rsi_color = rsi > 60 ? color.green : rsi < 40 ? color.red : color.gray
+    table.cell(dashboard, 0, 1, "RSI", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    table.cell(dashboard, 1, 1, str.tostring(rsi, "#.##"), text_color=color.white, bgcolor=color.new(rsi_color, 70), text_size=size.small)
+
+    // ADX
+    adx_color = adx >= adx_threshold ? color.green : color.red
+    table.cell(dashboard, 0, 2, "ADX", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    table.cell(dashboard, 1, 2, str.tostring(adx, "#.##"), text_color=color.white, bgcolor=color.new(adx_color, 70), text_size=size.small)
+
+    // MACD
+    macd_text = macd_line > signal_line ? "BULL" : "BEAR"
+    macd_color_cell = macd_line > signal_line ? color.green : color.red
+    table.cell(dashboard, 0, 3, "MACD", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    table.cell(dashboard, 1, 3, macd_text, text_color=color.white, bgcolor=color.new(macd_color_cell, 70), text_size=size.small)
+
+    // ATR
+    table.cell(dashboard, 0, 4, "ATR", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    table.cell(dashboard, 1, 4, str.tostring(atr, "#.####"), text_color=color.white, bgcolor=color.new(color.blue, 70), text_size=size.small)
+
+    // R:R Ratio
+    rr_ratio = tp_atr_multiplier / sl_atr_multiplier
+    table.cell(dashboard, 0, 5, "R:R", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    table.cell(dashboard, 1, 5, "1:" + str.tostring(rr_ratio, "#.##"), text_color=color.white, bgcolor=color.new(color.green, 70), text_size=size.small)
+
+    // Volume
+    vol_color = volume_ok ? color.green : color.red
+    table.cell(dashboard, 0, 6, "Volume OK", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    table.cell(dashboard, 1, 6, volume_ok ? "✓" : "✗", text_color=color.white, bgcolor=color.new(vol_color, 70), text_size=size.small)
+
+    // Trend
+    trend_text = price_above_trend ? "BULL" : "BEAR"
+    trend_color = price_above_trend ? color.green : color.red
+    table.cell(dashboard, 0, 7, "Trend", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    table.cell(dashboard, 1, 7, trend_text, text_color=color.white, bgcolor=color.new(trend_color, 70), text_size=size.small)
+
+    // Position
+    pos_size = strategy.position_size
+    pos_text = pos_size > 0 ? "LONG" : pos_size < 0 ? "SHORT" : "NONE"
+    pos_color = pos_size > 0 ? color.green : pos_size < 0 ? color.red : color.gray
+    table.cell(dashboard, 0, 8, "Position", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    table.cell(dashboard, 1, 8, pos_text, text_color=color.white, bgcolor=color.new(pos_color, 70), text_size=size.small)
+
+    // P&L
+    pnl_pct = strategy.openprofit / strategy.equity * 100
+    pnl_color = pnl_pct > 0 ? color.green : pnl_pct < 0 ? color.red : color.gray
+    table.cell(dashboard, 0, 9, "Open P&L %", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    table.cell(dashboard, 1, 9, str.tostring(pnl_pct, "#.##") + "%", text_color=color.white, bgcolor=color.new(pnl_color, 70), text_size=size.small)
+
+    // Win Rate
+    win_rate = strategy.wintrades / math.max(strategy.closedtrades, 1) * 100
+    wr_color = win_rate >= 50 ? color.green : color.red
+    table.cell(dashboard, 0, 10, "Win Rate", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    table.cell(dashboard, 1, 10, str.tostring(win_rate, "#.#") + "%", text_color=color.white, bgcolor=color.new(wr_color, 70), text_size=size.small)
+
+    // Total Trades
+    table.cell(dashboard, 0, 11, "Trades", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    table.cell(dashboard, 1, 11, str.tostring(strategy.closedtrades), text_color=color.white, bgcolor=color.new(color.blue, 70), text_size=size.small)
