@@ -1208,7 +1208,7 @@ if in_position and not na(avg_entry) and not na(initial_sl_dist)
                 label.new(bar_index, low - atrValue, "⚖️ Breakeven\n🔒 SL flyttad", style=label.style_label_up, color=color.new(color.blue, 20), textcolor=color.white, size=size.normal, yloc=yloc.price)
 
         else if is_short and stop_loss > avg_entry
-            stop_loss := avg_entry - (atrValue * 0.1)
+            stop_loss := avg_entry + (atrValue * 0.1)  // Lite över breakeven (högre pris för short)
             breakeven_moved := true
             if showTradeLabels
                 label.new(bar_index, high + atrValue, "⚖️ Breakeven\n🔒 SL flyttad", style=label.style_label_down, color=color.new(color.blue, 20), textcolor=color.white, size=size.normal, yloc=yloc.price)
