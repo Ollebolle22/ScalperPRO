@@ -478,6 +478,12 @@ var bool trail_activated = false
 var float trail_high = na
 var float trail_low = na
 
+// 📊 Plottable TP positions (sparar sista kända värden för plot)
+var float plot_tp1 = na
+var float plot_tp2 = na
+var float plot_tp3 = na
+var float plot_tp4 = na
+
 // 🎯 TP Trailing State
 var bool tp1_trailing = false
 var bool tp2_trailing = false
@@ -520,6 +526,10 @@ if not in_position and (is_long[1] or is_short[1])
     partial_tp2_price := na
     partial_tp3_price := na
     partial_tp4_price := na
+    plot_tp1 := na
+    plot_tp2 := na
+    plot_tp3 := na
+    plot_tp4 := na
     liq_price := na
     initial_sl_dist := na
     dca_count := 0
@@ -1261,6 +1271,32 @@ if in_position and not na(stop_loss)
 // Alerts now handled via strategy.order.comment in TradingView alert settings
 
 // ══════════════════════════════════════════════════════════════════════════════
+// 📊 UPDATE PLOTTABLE TP POSITIONS
+// ══════════════════════════════════════════════════════════════════════════════
+// Uppdatera plot_tp variabler med aktuella värden INNAN vi plottar
+// Detta säkerställer att vi ser TP-linjerna även när de flyttas dynamiskt
+if in_position
+    if partial1_enabled and not partial1_taken and not na(partial_tp1_price)
+        plot_tp1 := partial_tp1_price
+    else if partial1_taken
+        plot_tp1 := na  // Dölj när TP träffats
+
+    if partial2_enabled and not partial2_taken and not na(partial_tp2_price)
+        plot_tp2 := partial_tp2_price
+    else if partial2_taken
+        plot_tp2 := na
+
+    if partial3_enabled and not partial3_taken and not na(partial_tp3_price)
+        plot_tp3 := partial_tp3_price
+    else if partial3_taken
+        plot_tp3 := na
+
+    if partial4_enabled and not partial4_taken and not na(partial_tp4_price)
+        plot_tp4 := partial_tp4_price
+    else if partial4_taken
+        plot_tp4 := na
+
+// ══════════════════════════════════════════════════════════════════════════════
 // 🎨 VISUALS
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -1278,11 +1314,11 @@ plot(showSLTP and in_position ? stop_loss : na, "🛑 Stop Loss", colSL, 1, plot
 // UNIT COST LINE - visar EXAKT inköpspris (från TradingView)
 plot(in_position ? strategy.position_avg_price : na, "🏷️ Unit Cost (Avg Entry)", colUnitCost, 1, plot.style_linebr)
 
-// Multi-Level Partial TP Lines
-plot(showPartialTP and in_position and partial1_enabled and not partial1_taken ? partial_tp1_price : na, "📊 Partial TP1", colPartial, 1, plot.style_linebr)
-plot(showPartialTP and in_position and partial2_enabled and not partial2_taken ? partial_tp2_price : na, "📊 Partial TP2", colPartial, 1, plot.style_linebr)
-plot(showPartialTP and in_position and partial3_enabled and not partial3_taken ? partial_tp3_price : na, "📊 Partial TP3", colPartial, 1, plot.style_linebr)
-plot(showPartialTP and in_position and partial4_enabled and not partial4_taken ? partial_tp4_price : na, "📊 Partial TP4", colPartial, 1, plot.style_linebr)
+// Multi-Level Partial TP Lines (använder plot_tp som uppdateras dynamiskt)
+plot(showPartialTP ? plot_tp1 : na, "📊 Partial TP1", colPartial, 2, plot.style_linebr)
+plot(showPartialTP ? plot_tp2 : na, "📊 Partial TP2", colPartial, 2, plot.style_linebr)
+plot(showPartialTP ? plot_tp3 : na, "📊 Partial TP3", colPartial, 2, plot.style_linebr)
+plot(showPartialTP ? plot_tp4 : na, "📊 Partial TP4", colPartial, 2, plot.style_linebr)
 
 plot(showLiqLine and in_position ? liq_price : na, "⚠️ Liquidation", colLiq, 1, plot.style_linebr)
 
