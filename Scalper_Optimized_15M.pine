@@ -1315,10 +1315,10 @@ plot(showSLTP and in_position ? stop_loss : na, "🛑 Stop Loss", colSL, 1, plot
 plot(in_position ? strategy.position_avg_price : na, "🏷️ Unit Cost (Avg Entry)", colUnitCost, 1, plot.style_linebr)
 
 // Multi-Level Partial TP Lines (använder plot_tp som uppdateras dynamiskt)
-plot(showPartialTP ? plot_tp1 : na, "📊 Partial TP1", colPartial, 2, plot.style_linebr)
-plot(showPartialTP ? plot_tp2 : na, "📊 Partial TP2", colPartial, 2, plot.style_linebr)
-plot(showPartialTP ? plot_tp3 : na, "📊 Partial TP3", colPartial, 2, plot.style_linebr)
-plot(showPartialTP ? plot_tp4 : na, "📊 Partial TP4", colPartial, 2, plot.style_linebr)
+plot(showPartialTP ? plot_tp1 : na, "📊 Partial TP1", colPartial, 1, plot.style_linebr)
+plot(showPartialTP ? plot_tp2 : na, "📊 Partial TP2", colPartial, 1, plot.style_linebr)
+plot(showPartialTP ? plot_tp3 : na, "📊 Partial TP3", colPartial, 1, plot.style_linebr)
+plot(showPartialTP ? plot_tp4 : na, "📊 Partial TP4", colPartial, 1, plot.style_linebr)
 
 plot(showLiqLine and in_position ? liq_price : na, "⚠️ Liquidation", colLiq, 1, plot.style_linebr)
 
