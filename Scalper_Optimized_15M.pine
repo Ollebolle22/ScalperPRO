@@ -1119,55 +1119,81 @@ if usePartialTP and partial1_enabled and in_position and not partial1_taken and 
             label.new(bar_index, is_long ? (high + atrValue * 1.5) : (low - atrValue * 1.5), "💰 TP1\n✅ " + str.tostring(partial1_pct, "#") + "% @ +" + str.tostring(profit_pct, "#.#") + "%",
                  style=is_long ? label.style_label_down : label.style_label_up, color=color.new(colPartial, 10), textcolor=color.white, size=size.normal, yloc=yloc.price)
 
-// Partial TP Level 2
+// Partial TP Level 2 (FULL EXIT när TP1 tagen)
 if usePartialTP and partial2_enabled and in_position and not partial2_taken and not na(partial_tp2_price)
     partial2_hit = (is_long and high >= partial_tp2_price) or (is_short and low <= partial_tp2_price)
 
     if partial2_hit
-        // Använd total_qty (ursprunglig + DCAs) istället för strategy.position_size (kvarvarande)
-        partial_qty = total_qty * (partial2_pct / 100)
+        // Om TP1 redan tagen = FULL EXIT för att säkra vinst
+        // Annars = partial exit som vanligt
+        if partial1_taken
+            // FULL EXIT - stäng hela positionen
+            exit_json = build_exit_json(is_long, math.abs(strategy.position_size))
 
-        // Build exit JSON for partial TP
-        exit_json = build_exit_json(is_long, math.abs(partial_qty))
+            if is_long
+                strategy.close("Long", comment=exit_json)
+            else
+                strategy.close("Short", comment=exit_json)
 
-        if is_long
-            strategy.close("Long", qty=math.abs(partial_qty), comment=exit_json)
+            if showTradeLabels
+                profit_pct = is_long ? (partial_tp2_price - strategy.position_avg_price) / strategy.position_avg_price * 100 : (strategy.position_avg_price - partial_tp2_price) / strategy.position_avg_price * 100
+                label.new(bar_index, is_long ? (high + atrValue * 1.5) : (low - atrValue * 1.5), "💰 TP2 FULL EXIT\n✅ 100% @ +" + str.tostring(profit_pct, "#.#") + "%",
+                     style=is_long ? label.style_label_down : label.style_label_up, color=color.new(colBull, 10), textcolor=color.white, size=size.normal, yloc=yloc.price)
         else
-            strategy.close("Short", qty=math.abs(partial_qty), comment=exit_json)
+            // Partial exit (normal)
+            partial_qty = total_qty * (partial2_pct / 100)
+            exit_json = build_exit_json(is_long, math.abs(partial_qty))
+
+            if is_long
+                strategy.close("Long", qty=math.abs(partial_qty), comment=exit_json)
+            else
+                strategy.close("Short", qty=math.abs(partial_qty), comment=exit_json)
+
+            if showTradeLabels
+                profit_pct = is_long ? (partial_tp2_price - strategy.position_avg_price) / strategy.position_avg_price * 100 : (strategy.position_avg_price - partial_tp2_price) / strategy.position_avg_price * 100
+                label.new(bar_index, is_long ? (high + atrValue * 1.5) : (low - atrValue * 1.5), "💰 TP2\n✅ " + str.tostring(partial2_pct, "#") + "% @ +" + str.tostring(profit_pct, "#.#") + "%",
+                     style=is_long ? label.style_label_down : label.style_label_up, color=color.new(colPartial, 10), textcolor=color.white, size=size.normal, yloc=yloc.price)
 
         exit_alert_sent_this_bar := true
-
         partial2_taken := true
 
-        if showTradeLabels
-            profit_pct = is_long ? (partial_tp2_price - strategy.position_avg_price) / strategy.position_avg_price * 100 : (strategy.position_avg_price - partial_tp2_price) / strategy.position_avg_price * 100
-            label.new(bar_index, is_long ? (high + atrValue * 1.5) : (low - atrValue * 1.5), "💰 TP2\n✅ " + str.tostring(partial2_pct, "#") + "% @ +" + str.tostring(profit_pct, "#.#") + "%",
-                 style=is_long ? label.style_label_down : label.style_label_up, color=color.new(colPartial, 10), textcolor=color.white, size=size.normal, yloc=yloc.price)
-
-// Partial TP Level 3
+// Partial TP Level 3 (FULL EXIT när TP1 tagen)
 if usePartialTP and partial3_enabled and in_position and not partial3_taken and not na(partial_tp3_price)
     partial3_hit = (is_long and high >= partial_tp3_price) or (is_short and low <= partial_tp3_price)
 
     if partial3_hit
-        // Använd total_qty (ursprunglig + DCAs) istället för strategy.position_size (kvarvarande)
-        partial_qty = total_qty * (partial3_pct / 100)
+        // Om TP1 redan tagen = FULL EXIT för att säkra vinst
+        // Annars = partial exit som vanligt
+        if partial1_taken
+            // FULL EXIT - stäng hela positionen
+            exit_json = build_exit_json(is_long, math.abs(strategy.position_size))
 
-        // Build exit JSON for partial TP
-        exit_json = build_exit_json(is_long, math.abs(partial_qty))
+            if is_long
+                strategy.close("Long", comment=exit_json)
+            else
+                strategy.close("Short", comment=exit_json)
 
-        if is_long
-            strategy.close("Long", qty=math.abs(partial_qty), comment=exit_json)
+            if showTradeLabels
+                profit_pct = is_long ? (partial_tp3_price - strategy.position_avg_price) / strategy.position_avg_price * 100 : (strategy.position_avg_price - partial_tp3_price) / strategy.position_avg_price * 100
+                label.new(bar_index, is_long ? (high + atrValue * 1.5) : (low - atrValue * 1.5), "💰 TP3 FULL EXIT\n✅ 100% @ +" + str.tostring(profit_pct, "#.#") + "%",
+                     style=is_long ? label.style_label_down : label.style_label_up, color=color.new(colBull, 10), textcolor=color.white, size=size.normal, yloc=yloc.price)
         else
-            strategy.close("Short", qty=math.abs(partial_qty), comment=exit_json)
+            // Partial exit (normal)
+            partial_qty = total_qty * (partial3_pct / 100)
+            exit_json = build_exit_json(is_long, math.abs(partial_qty))
+
+            if is_long
+                strategy.close("Long", qty=math.abs(partial_qty), comment=exit_json)
+            else
+                strategy.close("Short", qty=math.abs(partial_qty), comment=exit_json)
+
+            if showTradeLabels
+                profit_pct = is_long ? (partial_tp3_price - strategy.position_avg_price) / strategy.position_avg_price * 100 : (strategy.position_avg_price - partial_tp3_price) / strategy.position_avg_price * 100
+                label.new(bar_index, is_long ? (high + atrValue * 1.5) : (low - atrValue * 1.5), "💰 TP3\n✅ " + str.tostring(partial3_pct, "#") + "% @ +" + str.tostring(profit_pct, "#.#") + "%",
+                     style=is_long ? label.style_label_down : label.style_label_up, color=color.new(colPartial, 10), textcolor=color.white, size=size.normal, yloc=yloc.price)
 
         exit_alert_sent_this_bar := true
-
         partial3_taken := true
-
-        if showTradeLabels
-            profit_pct = is_long ? (partial_tp3_price - strategy.position_avg_price) / strategy.position_avg_price * 100 : (strategy.position_avg_price - partial_tp3_price) / strategy.position_avg_price * 100
-            label.new(bar_index, is_long ? (high + atrValue * 1.5) : (low - atrValue * 1.5), "💰 TP3\n✅ " + str.tostring(partial3_pct, "#") + "% @ +" + str.tostring(profit_pct, "#.#") + "%",
-                 style=is_long ? label.style_label_down : label.style_label_up, color=color.new(colPartial, 10), textcolor=color.white, size=size.normal, yloc=yloc.price)
 
 // Partial TP Level 4
 if usePartialTP and partial4_enabled and in_position and not partial4_taken and not na(partial_tp4_price)
@@ -1356,7 +1382,7 @@ currentR = in_position and not na(avg_entry) and not na(initial_sl_dist) ? (is_l
 // ══════════════════════════════════════════════════════════════════════════════
 
 if showInfoPanel
-    var table panel = table.new(position.top_right, 2, 15, bgcolor=color.new(#000000, 95), border_width=1, border_color=color.new(#2962FF, 80))
+    var table panel = table.new(position.top_right, 2, 15, bgcolor=color.new(#000000, 90), border_width=1, border_color=color.new(#2962FF, 70))
 
     // Prepare compact data
     posTxt = is_long ? "🟢 L" : is_short ? "🔴 S" : "⚪"
@@ -1400,65 +1426,65 @@ if showInfoPanel
 
     row = 0
 
-    // Header - ultra compact
-    table.cell(panel, 0, row, "⚡SOL", text_color=color.white, text_size=size.tiny, bgcolor=color.new(#2962FF, 70))
-    table.cell(panel, 1, row, posTxt, text_color=posCol, text_size=size.tiny, bgcolor=color.new(#2962FF, 70))
+    // Header
+    table.cell(panel, 0, row, "⚡SOL", text_color=color.white, text_size=size.small, bgcolor=color.new(#2962FF, 70))
+    table.cell(panel, 1, row, posTxt, text_color=posCol, text_size=size.small, bgcolor=color.new(#2962FF, 70))
     row += 1
 
     // P&L+R
-    table.cell(panel, 0, row, "P&L:", text_color=color.gray, text_size=size.tiny)
-    table.cell(panel, 1, row, pnlR, text_color=in_position ? pnlCol : color.gray, text_size=size.tiny)
+    table.cell(panel, 0, row, "P&L:", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, pnlR, text_color=in_position ? pnlCol : color.gray, text_size=size.small)
     row += 1
 
     // Entry
-    table.cell(panel, 0, row, "Entry:", text_color=color.gray, text_size=size.tiny)
-    table.cell(panel, 1, row, entryTxt, text_color=color.yellow, text_size=size.tiny)
+    table.cell(panel, 0, row, "Entry:", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, entryTxt, text_color=color.yellow, text_size=size.small)
     row += 1
 
     // SL
-    table.cell(panel, 0, row, "SL:", text_color=color.gray, text_size=size.tiny)
-    table.cell(panel, 1, row, slTxt, text_color=colSL, text_size=size.tiny)
+    table.cell(panel, 0, row, "SL:", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, slTxt, text_color=colSL, text_size=size.small)
     row += 1
 
     // Liq
     liqCol = distToLiq < 10 ? colBear : distToLiq < 15 ? color.orange : colLiq
-    table.cell(panel, 0, row, "Liq:", text_color=color.gray, text_size=size.tiny)
-    table.cell(panel, 1, row, in_position ? str.tostring(distToLiq, "#.#") : "—", text_color=liqCol, text_size=size.tiny)
+    table.cell(panel, 0, row, "Liq:", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, in_position ? str.tostring(distToLiq, "#.#") : "—", text_color=liqCol, text_size=size.small)
     row += 1
 
     // TP
-    table.cell(panel, 0, row, "TP:", text_color=color.gray, text_size=size.tiny)
-    table.cell(panel, 1, row, tpTxt, text_color=colPartial, text_size=size.tiny)
+    table.cell(panel, 0, row, "TP:", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, tpTxt, text_color=colPartial, text_size=size.small)
     row += 1
 
     // DCA
-    table.cell(panel, 0, row, "DCA:", text_color=color.gray, text_size=size.tiny)
-    table.cell(panel, 1, row, dcaTxt, text_color=colDCA, text_size=size.tiny)
+    table.cell(panel, 0, row, "DCA:", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, dcaTxt, text_color=colDCA, text_size=size.small)
     row += 1
 
     // Trend+ADX
-    table.cell(panel, 0, row, "Trend:", text_color=color.gray, text_size=size.tiny)
-    table.cell(panel, 1, row, trendTxt + " " + adxTxt, text_color=adxCol, text_size=size.tiny)
+    table.cell(panel, 0, row, "Trend:", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, trendTxt + " " + adxTxt, text_color=adxCol, text_size=size.small)
     row += 1
 
     // Vol
-    table.cell(panel, 0, row, "Vol:", text_color=color.gray, text_size=size.tiny)
-    table.cell(panel, 1, row, volTxt, text_color=volCol, text_size=size.tiny)
+    table.cell(panel, 0, row, "Vol:", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, volTxt, text_color=volCol, text_size=size.small)
     row += 1
 
     // Stats
-    table.cell(panel, 0, row, "W/R:", text_color=color.gray, text_size=size.tiny)
-    table.cell(panel, 1, row, str.tostring(totalTrades) + "T " + str.tostring(winRate, "#") + "%", text_color=wrCol, text_size=size.tiny)
+    table.cell(panel, 0, row, "W/R:", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, str.tostring(totalTrades) + "T " + str.tostring(winRate, "#") + "%", text_color=wrCol, text_size=size.small)
     row += 1
 
     // PF
-    table.cell(panel, 0, row, "PF:", text_color=color.gray, text_size=size.tiny)
-    table.cell(panel, 1, row, str.tostring(profitFactor, "#.#"), text_color=pfCol, text_size=size.tiny)
+    table.cell(panel, 0, row, "PF:", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, str.tostring(profitFactor, "#.#"), text_color=pfCol, text_size=size.small)
     row += 1
 
     // Net
-    table.cell(panel, 0, row, "Net:", text_color=color.gray, text_size=size.tiny)
-    table.cell(panel, 1, row, "$" + str.tostring(strategy.netprofit, "#"), text_color=netCol, text_size=size.tiny)
+    table.cell(panel, 0, row, "Net:", text_color=color.gray, text_size=size.small)
+    table.cell(panel, 1, row, "$" + str.tostring(strategy.netprofit, "#"), text_color=netCol, text_size=size.small)
     row += 1
 
 // ══════════════════════════════════════════════════════════════════════════════
