@@ -149,24 +149,24 @@ tp_decay_rate = input.float(0.5, "Decay Rate %", step=0.1, group=grpRisk, toolti
 
 // Partial TP Level 1
 partial1_enabled = numPartialLevels >= 1
-partial1_pct = input.float(25.0, "📊 TP1: % av position", step=5.0, group=grpRisk, tooltip="Procent att sälja vid första TP")
-partial1_base_R = input.float(1.2, "📊 TP1: Base R (låg vol)", step=0.25, group=grpRisk, tooltip="TP1 R-multipel vid låg volatilitet")
-partial1_max_R = input.float(2.0, "📊 TP1: Max R (hög vol)", step=0.25, group=grpRisk, tooltip="TP1 R-multipel vid hög volatilitet")
-partial1_trigger = input.float(1.5, "⚠️ TP1: Fallback R", step=0.25, group=grpRisk, tooltip="Används om dynamisk TP är av")
+partial1_pct = input.float(50.0, "📊 TP1: % av position", step=5.0, group=grpRisk, tooltip="Procent att sälja vid första TP")
+partial1_base_R = input.float(1.75, "📊 TP1: Base R (låg vol)", step=0.25, group=grpRisk, tooltip="TP1 R-multipel vid låg volatilitet")
+partial1_max_R = input.float(2.75, "📊 TP1: Max R (hög vol)", step=0.25, group=grpRisk, tooltip="TP1 R-multipel vid hög volatilitet")
+partial1_trigger = input.float(1.2, "⚠️ TP1: Fallback R", step=0.25, group=grpRisk, tooltip="Används om dynamisk TP är av")
 
 // Partial TP Level 2
 partial2_enabled = numPartialLevels >= 2
 partial2_pct = input.float(25.0, "📊 TP2: % av position", step=5.0, group=grpRisk, tooltip="Procent att sälja vid andra TP")
-partial2_base_R = input.float(2.0, "📊 TP2: Base R (låg vol)", step=0.25, group=grpRisk, tooltip="TP2 R-multipel vid låg volatilitet")
-partial2_max_R = input.float(3.5, "📊 TP2: Max R (hög vol)", step=0.25, group=grpRisk, tooltip="TP2 R-multipel vid hög volatilitet")
-partial2_trigger = input.float(2.5, "⚠️ TP2: Fallback R", step=0.25, group=grpRisk, tooltip="Används om dynamisk TP är av")
+partial2_base_R = input.float(2.75, "📊 TP2: Base R (låg vol)", step=0.25, group=grpRisk, tooltip="TP2 R-multipel vid låg volatilitet")
+partial2_max_R = input.float(4.25, "📊 TP2: Max R (hög vol)", step=0.25, group=grpRisk, tooltip="TP2 R-multipel vid hög volatilitet")
+partial2_trigger = input.float(2.0, "⚠️ TP2: Fallback R", step=0.25, group=grpRisk, tooltip="Används om dynamisk TP är av")
 
 // Partial TP Level 3
 partial3_enabled = numPartialLevels >= 3
-partial3_pct = input.float(25.0, "📊 TP3: % av position", step=5.0, group=grpRisk, tooltip="Procent att sälja vid tredje TP")
-partial3_base_R = input.float(2.8, "📊 TP3: Base R (låg vol)", step=0.25, group=grpRisk, tooltip="TP3 R-multipel vid låg volatilitet")
-partial3_max_R = input.float(5.0, "📊 TP3: Max R (hög vol)", step=0.25, group=grpRisk, tooltip="TP3 R-multipel vid hög volatilitet")
-partial3_trigger = input.float(3.5, "⚠️ TP3: Fallback R", step=0.25, group=grpRisk, tooltip="Används om dynamisk TP är av")
+partial3_pct = input.float(100.0, "📊 TP3: % av position", step=5.0, group=grpRisk, tooltip="Procent att sälja vid tredje TP")
+partial3_base_R = input.float(4.0, "📊 TP3: Base R (låg vol)", step=0.25, group=grpRisk, tooltip="TP3 R-multipel vid låg volatilitet")
+partial3_max_R = input.float(6.5, "📊 TP3: Max R (hög vol)", step=0.25, group=grpRisk, tooltip="TP3 R-multipel vid hög volatilitet")
+partial3_trigger = input.float(3.0, "⚠️ TP3: Fallback R", step=0.25, group=grpRisk, tooltip="Används om dynamisk TP är av")
 
 // Partial TP Level 4
 partial4_enabled = numPartialLevels >= 4
