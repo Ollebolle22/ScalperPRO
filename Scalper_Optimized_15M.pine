@@ -1119,43 +1119,27 @@ if usePartialTP and partial1_enabled and in_position and not partial1_taken and 
             label.new(bar_index, is_long ? (high + atrValue * 1.5) : (low - atrValue * 1.5), "💰 TP1\n✅ " + str.tostring(partial1_pct, "#") + "% @ +" + str.tostring(profit_pct, "#.#") + "%",
                  style=is_long ? label.style_label_down : label.style_label_up, color=color.new(colPartial, 10), textcolor=color.white, size=size.normal, yloc=yloc.price)
 
-// Partial TP Level 2 (FULL EXIT när TP1 tagen)
+// Partial TP Level 2 (alltid partial)
 if usePartialTP and partial2_enabled and in_position and not partial2_taken and not na(partial_tp2_price)
     partial2_hit = (is_long and high >= partial_tp2_price) or (is_short and low <= partial_tp2_price)
 
     if partial2_hit
-        // Om TP1 redan tagen = FULL EXIT för att säkra vinst
-        // Annars = partial exit som vanligt
-        if partial1_taken
-            // FULL EXIT - stäng hela positionen
-            exit_json = build_exit_json(is_long, math.abs(strategy.position_size))
+        // Partial exit som vanligt (25%)
+        partial_qty = total_qty * (partial2_pct / 100)
+        exit_json = build_exit_json(is_long, math.abs(partial_qty))
 
-            if is_long
-                strategy.close("Long", comment=exit_json)
-            else
-                strategy.close("Short", comment=exit_json)
-
-            if showTradeLabels
-                profit_pct = is_long ? (partial_tp2_price - strategy.position_avg_price) / strategy.position_avg_price * 100 : (strategy.position_avg_price - partial_tp2_price) / strategy.position_avg_price * 100
-                label.new(bar_index, is_long ? (high + atrValue * 1.5) : (low - atrValue * 1.5), "💰 TP2 FULL EXIT\n✅ 100% @ +" + str.tostring(profit_pct, "#.#") + "%",
-                     style=is_long ? label.style_label_down : label.style_label_up, color=color.new(colBull, 10), textcolor=color.white, size=size.normal, yloc=yloc.price)
+        if is_long
+            strategy.close("Long", qty=math.abs(partial_qty), comment=exit_json)
         else
-            // Partial exit (normal)
-            partial_qty = total_qty * (partial2_pct / 100)
-            exit_json = build_exit_json(is_long, math.abs(partial_qty))
-
-            if is_long
-                strategy.close("Long", qty=math.abs(partial_qty), comment=exit_json)
-            else
-                strategy.close("Short", qty=math.abs(partial_qty), comment=exit_json)
-
-            if showTradeLabels
-                profit_pct = is_long ? (partial_tp2_price - strategy.position_avg_price) / strategy.position_avg_price * 100 : (strategy.position_avg_price - partial_tp2_price) / strategy.position_avg_price * 100
-                label.new(bar_index, is_long ? (high + atrValue * 1.5) : (low - atrValue * 1.5), "💰 TP2\n✅ " + str.tostring(partial2_pct, "#") + "% @ +" + str.tostring(profit_pct, "#.#") + "%",
-                     style=is_long ? label.style_label_down : label.style_label_up, color=color.new(colPartial, 10), textcolor=color.white, size=size.normal, yloc=yloc.price)
+            strategy.close("Short", qty=math.abs(partial_qty), comment=exit_json)
 
         exit_alert_sent_this_bar := true
         partial2_taken := true
+
+        if showTradeLabels
+            profit_pct = is_long ? (partial_tp2_price - strategy.position_avg_price) / strategy.position_avg_price * 100 : (strategy.position_avg_price - partial_tp2_price) / strategy.position_avg_price * 100
+            label.new(bar_index, is_long ? (high + atrValue * 1.5) : (low - atrValue * 1.5), "💰 TP2\n✅ " + str.tostring(partial2_pct, "#") + "% @ +" + str.tostring(profit_pct, "#.#") + "%",
+                 style=is_long ? label.style_label_down : label.style_label_up, color=color.new(colPartial, 10), textcolor=color.white, size=size.normal, yloc=yloc.price)
 
 // Partial TP Level 3 (FULL EXIT när TP1 tagen)
 if usePartialTP and partial3_enabled and in_position and not partial3_taken and not na(partial_tp3_price)
