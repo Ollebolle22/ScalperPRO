@@ -1406,58 +1406,58 @@ if showInfoPanel
     row += 1
 
     // P&L+R
-    table.cell(panel, 0, row, "💰", text_color=color.gray, text_size=size.tiny)
+    table.cell(panel, 0, row, "P&L:", text_color=color.gray, text_size=size.tiny)
     table.cell(panel, 1, row, pnlR, text_color=in_position ? pnlCol : color.gray, text_size=size.tiny)
     row += 1
 
     // Entry
-    table.cell(panel, 0, row, "🏷️", text_color=color.gray, text_size=size.tiny)
+    table.cell(panel, 0, row, "Entry:", text_color=color.gray, text_size=size.tiny)
     table.cell(panel, 1, row, entryTxt, text_color=color.yellow, text_size=size.tiny)
     row += 1
 
     // SL
-    table.cell(panel, 0, row, "🛑", text_color=color.gray, text_size=size.tiny)
+    table.cell(panel, 0, row, "SL:", text_color=color.gray, text_size=size.tiny)
     table.cell(panel, 1, row, slTxt, text_color=colSL, text_size=size.tiny)
     row += 1
 
     // Liq
     liqCol = distToLiq < 10 ? colBear : distToLiq < 15 ? color.orange : colLiq
-    table.cell(panel, 0, row, "⚠️", text_color=color.gray, text_size=size.tiny)
+    table.cell(panel, 0, row, "Liq:", text_color=color.gray, text_size=size.tiny)
     table.cell(panel, 1, row, in_position ? str.tostring(distToLiq, "#.#") : "—", text_color=liqCol, text_size=size.tiny)
     row += 1
 
     // TP
-    table.cell(panel, 0, row, "🎯", text_color=color.gray, text_size=size.tiny)
+    table.cell(panel, 0, row, "TP:", text_color=color.gray, text_size=size.tiny)
     table.cell(panel, 1, row, tpTxt, text_color=colPartial, text_size=size.tiny)
     row += 1
 
     // DCA
-    table.cell(panel, 0, row, "🔄", text_color=color.gray, text_size=size.tiny)
+    table.cell(panel, 0, row, "DCA:", text_color=color.gray, text_size=size.tiny)
     table.cell(panel, 1, row, dcaTxt, text_color=colDCA, text_size=size.tiny)
     row += 1
 
     // Trend+ADX
-    table.cell(panel, 0, row, trendTxt, text_color=color.gray, text_size=size.tiny)
-    table.cell(panel, 1, row, adxTxt, text_color=adxCol, text_size=size.tiny)
+    table.cell(panel, 0, row, "Trend:", text_color=color.gray, text_size=size.tiny)
+    table.cell(panel, 1, row, trendTxt + " " + adxTxt, text_color=adxCol, text_size=size.tiny)
     row += 1
 
     // Vol
-    table.cell(panel, 0, row, "🌊", text_color=color.gray, text_size=size.tiny)
+    table.cell(panel, 0, row, "Vol:", text_color=color.gray, text_size=size.tiny)
     table.cell(panel, 1, row, volTxt, text_color=volCol, text_size=size.tiny)
     row += 1
 
     // Stats
-    table.cell(panel, 0, row, "📈", text_color=color.gray, text_size=size.tiny)
+    table.cell(panel, 0, row, "W/R:", text_color=color.gray, text_size=size.tiny)
     table.cell(panel, 1, row, str.tostring(totalTrades) + "T " + str.tostring(winRate, "#") + "%", text_color=wrCol, text_size=size.tiny)
     row += 1
 
     // PF
-    table.cell(panel, 0, row, "💎", text_color=color.gray, text_size=size.tiny)
+    table.cell(panel, 0, row, "PF:", text_color=color.gray, text_size=size.tiny)
     table.cell(panel, 1, row, str.tostring(profitFactor, "#.#"), text_color=pfCol, text_size=size.tiny)
     row += 1
 
     // Net
-    table.cell(panel, 0, row, "💵", text_color=color.gray, text_size=size.tiny)
+    table.cell(panel, 0, row, "Net:", text_color=color.gray, text_size=size.tiny)
     table.cell(panel, 1, row, "$" + str.tostring(strategy.netprofit, "#"), text_color=netCol, text_size=size.tiny)
     row += 1
 
